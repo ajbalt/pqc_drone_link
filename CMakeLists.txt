@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.28) 
-project(pqc_drone_link LANGUAGE C CXX)
+project(pqc_drone_link LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(TP ${CMAKE_SOURCE_DIR}/third_party)
 
@@ -21,12 +21,11 @@ target_compile_options(mlkem_c PRIVATE -fno-exceptions -fno-rtti)
 set(ASCON_IMPL ref CACHE STRING "ascon-c implementation folder (ref, opt64, armv7m, ...)")
 set(ASCON_DIR ${TP}/ascon-c/crypto_aead_hash/asconaeadxof128/${ASCON_IMPL})
 file(GLOB ASCON_SRCS ${ASCON_DIR}/*.c ${ASCON_DIR}/*.S)
-add_library(ascon STATIC ${ASCON_SRCS})
-target_include_directories(ascon PUBLIC ${ASCON_DIR})
+target_include_directories(ascon PUBLIC ${ASCON_DIR} ${TP}/ascon-c/tests)
 
-# We are setting -Wall -Westra -Werror on our C ccode, but we don't want the sub modules
+# We are setting -Wall -Wextra -Werror on our C code, but we don't want the sub modules
 # causing errors as well
-add_library(project_warning INTERFACE)
+add_library(project_warnings INTERFACE)
 target_compile_options(project_warnings INTERFACE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
 
 #CMAKE_C_EXTENSIONS OFF (strict -std=c17), POSIX functions like clock_gettime and the socket APIs are hidden.
@@ -55,6 +54,6 @@ add_executable(ground_station src/app/ground_station.c)
 foreach(t drone ground_station)
   target_link_libraries(${t} PRIVATE pqc_crypto pqc_transport pqc_metrics project_warnings)
 endforeach()
-i a
+
 enable_testing()
 # add_executable(test_kem_vectors tests/test_kem_vectors.c) ... add_test(...)
