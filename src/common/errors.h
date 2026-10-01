@@ -29,51 +29,50 @@ enum pqc_err {
   PQC_ERR_INTERNAL = -4,         /**<"can't happen" path; indicates a bug */
 
   /* Randomness (-10 .. -19) */
-  PQC_ERR_RNG_FAIL = -10, /**<getrandom() failed or returned short;
+  PQC_ERR_RNG_FAIL = -10, /**< getrandom() failed or returned short;
                              never fall back to a weaker source */
 
   /* Key exchange, kem.h (-20 .. -29) */
-  PQC_ERR_KEM_UNSUPPORTED = -20, /* mode not compiled in or unknown */
+  PQC_ERR_KEM_UNSUPPORTED = -20, /**< mode not compiled in or unknown */
   PQC_ERR_KEM_KEYGEN = -21,
-  PQC_ERR_KEM_ENCAPS = -22, /* includes malformed peer public key */
+  PQC_ERR_KEM_ENCAPS = -22, /**< includes malformed peer public key */
   PQC_ERR_KEM_DECAPS = -23,
   PQC_ERR_KDF_FAIL = -24,
 
   /* Packet protection, aead_ascon.c (-30 .. -39) */
   PQC_ERR_AEAD_ENCRYPT = -30,
-  PQC_ERR_AEAD_AUTH = -31, /* decrypt/verify failed. Deliberately one
+  PQC_ERR_AEAD_AUTH = -31, /**< decrypt/verify failed. Deliberately one
                               code for every failure cause, so the
                               rece The
                               packet is dropped, never used as plaintext. */
 
   /* Session: nonces and replay window, sess
   PQC_ERR_REPLAY             = -40,  /* duplber */
-  PQC_ERR_REKEY_REQUIRED = -41, /* packet counter would overflow; nonce
+  PQC_ERR_REKEY_REQUIRED = -41, /**< packet counter would overflow; nonce
                                    reuse is never allowed, so stop and rekey */
-  PQC_ERR_BAD_EPOCH = -42,      /* packet for a key epoch we don't hold */
-  PQC_ERR_NO_SESSION = -43,     /* encrdone */
+  PQC_ERR_BAD_EPOCH = -42,      /**< packet for a key epoch we don't hold */
+  PQC_ERR_NO_SESSION = -43,     /**< encrdone */
 
   /* Fragmentation, fragment.c (-50 .. -59) */
   PQC_ERR_FRAG_MALFORMED =
       -50, /* bad header, index >= count, length mismatch */
-  PQC_ERR_FRAG_TOO_LARGE = -51, /* message exceeds reassembly buffer */
-  PQC_ERR_FRAG_TIMEOUT = -52,   /* retransmit limit reached */
+  PQC_ERR_FRAG_TOO_LARGE = -51, /**< message exceeds reassembly buffer */
+  PQC_ERR_FRAG_TIMEOUT = -52,   /**< retransmit limit reached */
   PQC_ERR_FRAG_INCOMPLETE =
-      -53, /* not an error to log; more fragments needed */
+      -53, /**< not an error to log; more fragments needed */
 
   /* Handshake, handshake.c (-60 .. -69) */
-  PQC_ERR_HS_BAD_STATE = -60,   /* message not valid in current state */
-  PQC_ERR_HS_BAD_MESSAGE = -61, /* malformed or wrong-length handshake msg */
-  PQC_ERR_HS_MODE_MISMATCH =
-      -62, /* peer offered a different KEM. Always
+  PQC_ERR_HS_BAD_STATE = -60,   /**< message not valid in current state */
+  PQC_ERR_HS_BAD_MESSAGE = -61, /**< malformed or wrong-length handshake msg */
+  PQC_ERR_HS_MODE_MISMATCH = -62, /**< peer offered a different KEM. Always
               fatal: we never downgrade (crypto rule 8) */
   PQC_ERR_HS_TIMEOUT = -63,
-  PQC_ERR_HS_AUTH = -64, /* peer failed authentication (PSK/signature) */
+  PQC_ERR_HS_AUTH = -64, /**< peer failed authentication (PSK/signature) */
 
   /* Transport, udp.c / serial_radio.c (-70
-  PQC_ERR_IO                 = -70,  /* socket or serial read/write failed */
-  PQC_ERR_TIMEOUT = -71,       /* no data within receive timeout */
-  PQC_ERR_PKT_TOO_LARGE = -72, /* packet exceeds link_mtu */
+  PQC_ERR_IO                 = -70,  /**< socket or serial read/write failed */
+  PQC_ERR_TIMEOUT = -71,       /**<  no data within receive timeout */
+  PQC_ERR_PKT_TOO_LARGE = -72, /**<  packet exceeds link_mtu */
 };
 
 #endif /* PQC_ERRORS_H */

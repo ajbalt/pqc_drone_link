@@ -17,3 +17,9 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release    # only needed after editing CMakeLi
 cmake --build build
 cmake --build build --target docs
 ```
+
+## Documentation
+
+```sh
+ build/docs/html/index.html
+```
