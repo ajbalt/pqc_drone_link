@@ -1,0 +1,6 @@
+[submodule "third_party/ml-kem"]
+	path = third_party/ml-kem
+	url = https://github.com/itzmeanjan/ml-kem.git
+[submodule "third_party/ascon-c"]
+	path = third_party/ascon-c
+	url = https://github.com/ascon/ascon-c.git
