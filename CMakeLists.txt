@@ -21,6 +21,7 @@ target_compile_options(mlkem_c PRIVATE -fno-exceptions -fno-rtti)
 set(ASCON_IMPL ref CACHE STRING "ascon-c implementation folder (ref, opt64, armv7m, ...)")
 set(ASCON_DIR ${TP}/ascon-c/crypto_aead_hash/asconaeadxof128/${ASCON_IMPL})
 file(GLOB ASCON_SRCS ${ASCON_DIR}/*.c ${ASCON_DIR}/*.S)
+add_library(ascon STATIC ${ASCON_SRCS})
 target_include_directories(ascon PUBLIC ${ASCON_DIR} ${TP}/ascon-c/tests)
 
 # We are setting -Wall -Wextra -Werror on our C code, but we don't want the sub modules
