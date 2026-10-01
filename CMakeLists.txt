@@ -57,3 +57,26 @@ endforeach()
 
 enable_testing()
 # add_executable(test_kem_vectors tests/test_kem_vectors.c) ... add_test(...)
+
+# Documentation: optional, so the drone and other build machines don't need doxygen.
+# Not part of the default build; generate with: cmake --build build --target docs
+find_package(Doxygen OPTIONAL_COMPONENTS dot)
+if(DOXYGEN_FOUND)
+  set(DOXYGEN_PROJECT_NAME "PQC-1: Quantum-Secure Drone Link")
+  set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/docs)
+  set(DOXYGEN_OPTIMIZE_OUTPUT_FOR_C YES)
+  set(DOXYGEN_EXTRACT_STATIC YES)        # document static helpers in .c files too
+  set(DOXYGEN_RECURSIVE YES)
+  set(DOXYGEN_FILE_PATTERNS *.h *.c *.cpp *.md)
+  set(DOXYGEN_USE_MDFILE_AS_MAINPAGE ${CMAKE_SOURCE_DIR}/README.md)
+  set(DOXYGEN_WARN_IF_UNDOCUMENTED YES)
+  set(DOXYGEN_GENERATE_LATEX NO)
+
+  doxygen_add_docs(docs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/docs
+    ${CMAKE_SOURCE_DIR}/README.md
+    COMMENT "Generating API documentation with Doxygen")
+else()
+  message(STATUS "Doxygen not found; 'docs' target unavailable")
+endif()
