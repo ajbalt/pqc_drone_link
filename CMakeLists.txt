@@ -58,9 +58,14 @@ foreach(t drone ground_station)
 endforeach()
 
 enable_testing()
+
 add_executable(test_kem tests/test_kem.c)
 target_link_libraries(test_kem PRIVATE pqc_crypto project_warnings)
 add_test(NAME test_kem COMMAND test_kem)
+
+add_executable(test_rng tests/test_rng.c)
+target_link_libraries(test_rng PRIVATE pqc_crypto project_warnings)
+add_test(NAME test_rng COMMAND test_rng)
 
 # Documentation: optional, so the drone and other build machines don't need doxygen.
 # Not part of the default build; generate with: cmake --build build --target docs
