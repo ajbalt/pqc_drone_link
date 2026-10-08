@@ -38,6 +38,7 @@ target_include_directories(pqc_common INTERFACE src)
 
 add_library(pqc_crypto STATIC
   src/crypto/rng.c
+  src/crypto/kem.c
   src/crypto/kem_none.c
   # week 2+: kem_mlkem.c kem_x25519.c kdf.c aead_ascon.c
 )
@@ -57,7 +58,9 @@ foreach(t drone ground_station)
 endforeach()
 
 enable_testing()
-# add_executable(test_kem_vectors tests/test_kem_vectors.c) ... add_test(...)
+add_executable(test_kem tests/test_kem.c)
+target_link_libraries(test_kem PRIVATE pqc_crypto project_warnings)
+add_test(NAME test_kem COMMAND test_kem)
 
 # Documentation: optional, so the drone and other build machines don't need doxygen.
 # Not part of the default build; generate with: cmake --build build --target docs

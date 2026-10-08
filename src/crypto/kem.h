@@ -20,7 +20,7 @@
  * The none mode fits it with every size equal to 0.
  */
 
-#include  <stddef.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /** @brief Largest public key of any supported mode (ML-KEM-1024), bytes. */
@@ -47,10 +47,11 @@ enum kem_mode {
 };
 
 /**
- * @brief Key exchange modes.
+ * @brief Sizes and operations for one key exchange mode.
  *
- * Values are fixed: they are sent in the handshake and written to logs.
- * Add new modes; never renumber.
+ * Call the operations through kem_keygen(), kem_encaps() and kem_decaps(),
+ * never directly: the wrappers check every length first, so the
+ * implementations can assume correctly sized buffers.
  */
 struct kem_ops {
   enum kem_mode mode; /**< which mode this table implements */
@@ -58,7 +59,8 @@ struct kem_ops {
   size_t pk_len;      /**< public key length, bytes */
   size_t sk_len;      /**< secret key length, bytes */
   size_t ct_len;      /**< ciphertext length, bytes */
-  size_t ss_len;      /**< shared secret length, bytes; 0 for none. kdf.c must reject 0 so the none mode can never produce an encryption key */
+  size_t ss_len; /**< shared secret length, bytes; 0 for none. kdf.c must reject
+                    0 so the none mode can never produce an encryption key */
 
   int (*keygen)(uint8_t *pk, uint8_t *sk); /**< see kem_keygen() */
   int (*encaps)(const uint8_t *pk, uint8_t *ct,
@@ -137,4 +139,5 @@ int kem_encaps(const struct kem_ops *kem, const uint8_t *pk, size_t pk_len,
  */
 int kem_decaps(const struct kem_ops *kem, const uint8_t *sk, size_t sk_len,
                const uint8_t *ct, size_t ct_len, uint8_t *ss, size_t ss_cap);
+
 #endif /* PQC_KEM_H */

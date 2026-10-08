@@ -20,7 +20,7 @@ static const struct kem_ops *const kem_table[] = {
     &kem_none_ops,
 };
 
-/** @brief Number of entries in kem_taable */
+/** @brief Number of entries in kem_table. */
 #define KEM_TABLE_LEN (sizeof kem_table / sizeof kem_table[0])
 
 int kem_get(enum kem_mode mode, const struct kem_ops **out) {
@@ -47,7 +47,7 @@ int kem_from_name(const char *name, const struct kem_ops **out) {
   *out = NULL;
 
   for (size_t i = 0; i < KEM_TABLE_LEN; i++) {
-    /*Plain strcmp is fine: the mode name comes from config, not a secret. */
+    /* Plain strcmp is fine: the mode name comes from config, not a secret. */
     if (strcmp(kem_table[i]->name, name) == 0) {
       *out = kem_table[i];
       return PQC_OK;
