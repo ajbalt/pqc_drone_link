@@ -10,10 +10,10 @@
  * other two primitives every crypto file needs (crypto rules 5 and 6).
  */
 
- #include <stddef.h>
- #include <stdint.h>
+#include <stddef.h>
+#include <stdint.h>
 
- /**
+/**
  * @brief Fill a buffer with cryptographically secure random bytes.
  * @param[out] buf  Destination buffer.
  * @param[in]  len  Number of bytes to write.
