@@ -164,6 +164,7 @@ changes. It checks for:
 - broken links (including Obsidian-style `[[...]]`)
 - citations to unknown source IDs
 - pages missing from the index
+- links to a `page.md#section` that doesn't exist
 
 Then review the things that need judgment:
 - contradictions between pages

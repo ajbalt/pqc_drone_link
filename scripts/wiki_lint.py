@@ -15,6 +15,8 @@ Checks:
   5. Broken links        relative links to missing files, and any [[wikilink]]
   6. Unknown sources     links to sources.md#<id> where <id> isn't registered
   7. Index coverage      pages not listed in index.md
+  8. Broken anchors      links to page.md#section where no heading has that
+                         GitHub-style anchor (sources.md anchors are check 6)
 
 Usage:   python3 scripts/wiki_lint.py
 Exit:    0 = clean, 1 = issues found, 2 = wiki not found
@@ -204,6 +206,30 @@ def check_index(pages):
     return [rel(p) for p in pages if p.resolve() not in listed]
 
 
+# 8. Section anchors -----------------------------------------------------------
+
+def heading_anchor(text: str) -> str:
+    """GitHub-style anchor: lowercase, punctuation dropped, spaces to hyphens."""
+    return re.sub(r"[^\w\- ]", "", text.strip().lower()).replace(" ", "-")
+
+
+def check_anchors():
+    anchors = {}
+    for f in all_md():
+        body = FENCED_RE.sub("", read(f))
+        anchors[f.resolve()] = {heading_anchor(m.group(1))
+                                for m in re.finditer(r"^#{1,6} (.+)$", body, re.M)}
+    sources = (WIKI / "sources.md").resolve()
+    issues = []
+    for f in all_md():
+        bad = sorted({raw for target, anchor, raw in links(f)
+                      if anchor and target.suffix == ".md" and target != sources
+                      and target in anchors and anchor not in anchors[target]})
+        if bad:
+            issues.append((rel(f), bad))
+    return issues
+
+
 # main ------------------------------------------------------------------------
 
 def report(n, title, items):
@@ -237,6 +263,7 @@ def main() -> int:
     total += report(5, "Broken links", broken)
     total += report(6, "Unknown source IDs", unknown)
     total += report(7, "Pages missing from index.md", check_index(pages))
+    total += report(8, "Broken section anchors", check_anchors())
 
     print("\n" + "=" * 54 + f"\nTotal issues: {total}")
     return 1 if total else 0

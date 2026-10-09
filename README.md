@@ -164,10 +164,27 @@ evidence.
       ([decision page](docs/research/decisions/radio-link.md))
 - [ ] X25519 library for the classical baseline
 - [ ] Handshake authentication: pre-shared key mixed into KDF (prototype default) vs
-      ML-DSA signatures
-- [ ] KDF construction: Ascon-XOF128 (already in our Ascon build) vs HKDF-SHA256
+      ML-DSA signatures ([decision page](docs/research/decisions/handshake-auth.md))
+- [ ] KDF construction: Ascon-XOF128 (already in our Ascon build, but not a NIST-approved
+      KDF) vs HKDF-SHA256 (approved, needs SHA-256)
+      ([decision page](docs/research/decisions/kdf-construction.md))
 - [ ] Optimized `ASCON_IMPL` for benchmarking on the chosen hardware
 - [ ] Telemetry rates and message sizes to emulate (base on MAVLink)
 - [ ] Hybrid mode (X25519 + ML-KEM) as a stretch goal?
+      ([decision page](docs/research/decisions/hybrid-mode.md))
 - [ ] Packet header contents (packet type, sequence number, key epoch; mode?). Settle in
       `docs/protocol_spec.md` before writing `messages.h`.
+- [ ] NIST compliance level: "uses NIST primitives" or "follows NIST guidance"? Decides
+      whether the KDF, RNG and key-confirmation deviations are acceptable
+      ([Q1](docs/research/open-questions.md#q1-how-nist-compliant-must-the-project-be))
+- [ ] Key confirmation: implicit (first AEAD packet) or an explicit message?
+      ([Q5](docs/research/open-questions.md#q5-implicit-or-explicit-key-confirmation))
+- [ ] Ascon tag truncation in scope for the radio experiments?
+      ([Q3](docs/research/open-questions.md#q3-is-tag-truncation-in-scope))
+- [ ] Mutual or one-way handshake authentication?
+      ([Q11](docs/research/open-questions.md#q11-mutual-or-one-way-authentication))
+- [ ] Radio hardware model and regulatory region (US 400 ms dwell vs EU 1% duty cycle)
+      ([Q14](docs/research/open-questions.md#q14-which-radio-hardware-and-which-region))
+
+The smaller questions raised by the research (Q1–Q18) are tracked in
+[docs/research/open-questions.md](docs/research/open-questions.md).
