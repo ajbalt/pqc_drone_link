@@ -15,7 +15,7 @@ looks the way it does.
 | 0    | Error codes                    | `src/common/errors.h`                   | (used by all tests) | Done         |
 | 3    | Key exchange interface         | `src/crypto/kem.h`, `kem.c`, `kem_none.c` | `tests/test_kem.c`  | Done         |
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
-| 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | In progress |
+| 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done        |
 | 4    | Packet formats                 | `docs/protocol_spec.md`, `src/protocol/messages.h` | —         | Next         |
 | 5    | UDP transport                  | `src/transport/udp.c`                   | —                   | Planned      |
 | 6    | Baseline apps                  | `src/app/drone.c`, `ground_station.c`, `telemetry_gen.c` | — | Planned      |
@@ -44,6 +44,13 @@ TODO: add these to the repo layout in CLAUDE.md.
 - **Return codes.** Every function returns `int`: `0` (`PQC_OK`) on success,
   a negative code from `errors.h` on failure. The only exception is
   `secure_wipe()`, which returns `void` (see below).
+- **Warnings.** Project C code builds with
+  `-Wall -Wextra -Werror -Wmissing-prototypes`. The last one requires every
+  non-`static` function to be declared in a header first, so a typo between
+  a header and its `.c` file (e.g. `timer_cput_ns` vs `timer_cpu_ns`) fails
+  at compile time on the exact line, instead of as a confusing
+  "undefined reference" from the linker. Helpers that aren't in a header
+  must be `static`.
 - **Includes** are relative to `src/`: `#include "crypto/kem.h"`,
   `#include "common/errors.h"`.
 - **Doxygen.** API docs go in the header; `.c` files explain *why* with

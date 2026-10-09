@@ -27,7 +27,7 @@ target_include_directories(ascon PUBLIC ${ASCON_DIR} ${TP}/ascon-c/tests)
 # We are setting -Wall -Wextra -Werror on our C code, but we don't want the sub modules
 # causing errors as well
 add_library(project_warnings INTERFACE)
-target_compile_options(project_warnings INTERFACE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
+target_compile_options(project_warnings INTERFACE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror -Wmissing-prototypes>)
 
 #CMAKE_C_EXTENSIONS OFF (strict -std=c17), POSIX functions like clock_gettime and the socket APIs are hidden.
 add_compile_definitions(_POSIX_C_SOURCE=200809L)
@@ -66,6 +66,10 @@ add_test(NAME test_kem COMMAND test_kem)
 add_executable(test_rng tests/test_rng.c)
 target_link_libraries(test_rng PRIVATE pqc_crypto project_warnings)
 add_test(NAME test_rng COMMAND test_rng)
+
+add_executable(test_metrics tests/test_metrics.c)
+target_link_libraries(test_metrics PRIVATE pqc_metrics project_warnings)
+add_test(NAME test_metrics COMMAND test_metrics)
 
 # Documentation: optional, so the drone and other build machines don't need doxygen.
 # Not part of the default build; generate with: cmake --build build --target docs
