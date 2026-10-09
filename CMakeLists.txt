@@ -89,6 +89,7 @@ if(DOXYGEN_FOUND)
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/docs
     ${CMAKE_SOURCE_DIR}/README.md
+    ${CMAKE_SOURCE_DIR}/CONTRIBUTING.md
     COMMENT "Generating API documentation with Doxygen")
 else()
   message(STATUS "Doxygen not found; 'docs' target unavailable")

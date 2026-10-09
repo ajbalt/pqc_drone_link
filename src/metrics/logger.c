@@ -14,7 +14,7 @@
  * @brief CSV name of each event.
  *
  * Names are what end up in the CSV and what analysis/parse_logs.py matches
- * on, so they must stay exactly as listed in CLAUDE.md.
+ * on, so they must stay exactly as listed in CONTRIBUTING.md.
  */
 static const char *const event_names[] = {
     [LOG_EV_HANDSHAKE_START] = "handshake_start",

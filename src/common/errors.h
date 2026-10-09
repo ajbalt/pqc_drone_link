@@ -6,7 +6,8 @@
  * @brief Error codes returned by every project function.
  *
  * Convention: functions return int. 0 = success, negative = one of the
- * codes below. Callers must check every return value (CLAUDE.md crypto rule 7).
+ * codes below. Callers must check every return value (CONTRIBUTING.md crypto
+ * rule 7).
  *
  * Codes are grouped in ranges of 10 by module, so a number seen in a CSV log
  * tells you where it came from without looking it up.

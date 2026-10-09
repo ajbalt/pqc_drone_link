@@ -5,7 +5,7 @@
  * @file rng.h
  * @brief Secure randomness, secret wiping, and constant-time comparison.
  *
- * All randomness in the project comes from rng_bytes() (CLAUDE.md crypto
+ * All randomness in the project comes from rng_bytes() (CONTRIBUTING.md crypto
  * rule 3). secure_wipe() and ct_memcmp() live here too because they are the
  * other two primitives every crypto file needs (crypto rules 5 and 6).
  */

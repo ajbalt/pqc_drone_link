@@ -4,7 +4,7 @@ A running record of what has been built, the design choices behind it, and
 the reasoning a new team member needs to understand the code. Add a section
 each time a module is finished.
 
-The rules themselves live in `.claude/CLAUDE.md`; packet formats and the
+The rules themselves live in `CONTRIBUTING.md`; packet formats and the
 handshake live in `docs/protocol_spec.md`. This file explains *why* the code
 looks the way it does.
 
@@ -23,7 +23,7 @@ looks the way it does.
 Steps were done out of numeric order on purpose: `kem.h` came first because
 its shape decides how cleanly ML-KEM and X25519 drop in during week 2.
 
-### Files added beyond the CLAUDE.md layout
+### Files added beyond the original layout
 
 | File                    | Why it exists                                               |
 |-------------------------|-------------------------------------------------------------|
@@ -35,7 +35,7 @@ its shape decides how cleanly ML-KEM and X25519 drop in during week 2.
 | `tests/test_rng.c`      | rng.c tests                                                 |
 | `tests/test_metrics.c`  | timer.c and logger.c tests                                  |
 
-TODO: add these to the repo layout in CLAUDE.md.
+These are listed in the repo layout in README.md.
 
 ---
 
@@ -220,7 +220,7 @@ randomness.
 
 **logger.c**
 
-CSV columns, as required by CLAUDE.md:
+CSV columns, as required by CONTRIBUTING.md:
 `run_id, mode, timestamp_ns, endpoint, event, bytes, detail`.
 
 - **Two halves.** `logger_event()` only writes a record into an array in
@@ -255,6 +255,25 @@ CSV columns, as required by CLAUDE.md:
 
 ---
 
+## Debugging lessons
+
+Mistakes we've hit so far, and how to recognise them next time.
+
+| Symptom | Cause | How it's caught now |
+|---------|-------|---------------------|
+| Build passes, but an error code "doesn't exist" when first used | An unterminated `/*` comment in `errors.h` swallowed the next enum line | Tests that use every value; read compiler output for "undeclared" |
+| Linker: `undefined reference to 'timer_cpu_ns'` | Typo between header and `.c` file (`timer_cput_ns`); each file compiled fine on its own | `-Wmissing-prototypes` now fails the build on the exact line |
+| Doxygen describes a struct with the enum's text | Comment block copied and not edited | Read the generated docs (`cmake --build build --target docs`) |
+| git diff shows "No newline at end of file" | Editor not adding a final newline | Editor setting + `clang-format -i` before committing |
+
+**Reading an "undefined reference" error:** the compiler only checks that
+a function is *declared*; the linker checks that it is *defined*
+somewhere in the build. So "undefined reference" means either the
+definition's name doesn't match the declaration, or the `.c` file holding
+it isn't listed in `CMakeLists.txt`.
+
+---
+
 ## Follow-ups that later modules must honour
 
 These were promised by code written so far; whoever writes the module must
@@ -269,11 +288,29 @@ implement them.
 - [ ] Each KEM implementation wipes its own partial outputs if it fails.
 - [ ] `scripts/power_logger.py` timestamps with `time.monotonic_ns()`.
 - [ ] Apps call `logger_flush()` only outside timed regions.
-- [ ] Add the extra files above to the CLAUDE.md layout.
+- [ ] Apps size the log buffer for a whole run (telemetry rate × run
+      length × events per packet), and `analysis/parse_logs.py` flags any
+      run that contains a `log_dropped` row.
+- [x] Add the extra files above to the repo layout (README.md).
 
 ## Open decisions still pending
 
-See "Open decisions" in CLAUDE.md. None of them blocked the work so far.
+See "Open decisions" in README.md. None of them blocked the work so far.
 The next one that matters is **handshake authentication** (pre-shared key
 in the KDF vs ML-DSA signatures), which needs deciding before
 `handshake.c` and `kdf.c`.
+
+The next step (packet formats) needs the packet header settled in
+`docs/protocol_spec.md` first: at least packet type, sequence number and
+key epoch, and possibly the mode.
+
+---
+
+## Progress log
+
+| Date       | Work |
+|------------|------|
+| 2026-09-30 | Build skeleton, CMake, submodules, clang-format, Doxygen target; first draft of `errors.h` |
+| 2026-10-01 | Doxygen working |
+| 2026-10-07 | Fixed `errors.h` (two swallowed codes, truncated comments); `kem.h` / `kem.c` / `kem_none.c` + `test_kem`; `rng.c` + `test_rng`; first `ctest` tests |
+| 2026-10-08 | `timer.c` and `logger.c` + `test_metrics`; added `-Wmissing-prototypes`; started this file. `ctest`: 3/3 passing |

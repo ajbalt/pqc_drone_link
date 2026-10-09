@@ -8,8 +8,8 @@
  * Protocol and application code select a key exchange once, at runtime, from
  * config (kem_get() / kem_from_name()) and then only call through the
  * returned table. They never call a crypto library directly or branch on
- * which KEM is in use (CLAUDE.md crypto rule 2). This is what keeps the key
- * exchange the only variable between modes.
+ * which KEM is in use (CONTRIBUTING.md crypto rule 2). This is what keeps the
+ * key exchange the only variable between modes.
  *
  * Every mode is expressed as a KEM with three operations:
  *   - keygen: responder makes a key pair and sends pk

@@ -10,7 +10,7 @@
  * logger_event() only stores a record in a caller-provided array: no I/O,
  * no allocation, so it is safe to call inside timed regions and on the
  * packet path. logger_flush() does the file writing and must only be called
- * outside timed regions (CLAUDE.md memory and timing rules).
+ * outside timed regions (CONTRIBUTING.md memory and timing rules).
  *
  * Not thread-safe: use one logger per thread.
  */
