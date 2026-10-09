@@ -22,7 +22,9 @@ context (packet loss, link rate, rekey timing), never as bare algorithm benchmar
 > **Before changing any code, read [CONTRIBUTING.md](CONTRIBUTING.md).** It holds the
 > rules every change must follow (crypto, memory, logging, testing, code style).
 > [docs/design_notes.md](docs/design_notes.md) explains *why* the code is designed the
-> way it is, and tracks current status.
+> way it is, and tracks current status. The research wiki in
+> [docs/research/](docs/research/index.md) holds what the standards, papers and
+> datasheets say, and the evidence behind each open decision.
 
 ## Getting the code
 
@@ -119,12 +121,19 @@ pqc_drone_link/
 │   └── run_experiment.sh      # Runs a config N times, saves logs
 ├── scripts/
 │   ├── netem_setup.sh         # Simulate packet loss and delay
-│   └── power_logger.py        # Reads the INA219/INA260 current sensor
+│   ├── power_logger.py        # Reads the INA219/INA260 current sensor
+│   └── wiki_lint.py           # Health checks for the research wiki
 ├── analysis/
 │   ├── parse_logs.py          # CSV logs -> tidy data
 │   └── plots.ipynb            # Charts for the final comparison
 ├── results/                   # Raw logs (large ones gitignored or stored elsewhere)
 └── docs/
+    ├── research/              # Research wiki: sources, topics, decision pages
+    │   ├── README.md          # How the wiki works (page format, citations, workflows)
+    │   ├── index.md           # Catalog of every page
+    │   ├── sources.md         # Registry of every cited source (PDFs are not in git)
+    │   ├── log.md             # Append-only change record
+    │   └── decisions/         # One page per open decision: options, evidence, outcome
     ├── design_notes.md        # Why the code looks the way it does; status and progress log
     ├── protocol_spec.md       # Exact handshake and packet formats
     ├── threat_model.md        # What attacks we defend against, and which we don't
@@ -146,10 +155,13 @@ Not every file exists yet; see the status table in
 
 ## Open decisions
 
-Tick these off here as the team decides.
+Tick these off here as the team decides. Each decision gets a page in
+[docs/research/decisions/](docs/research/index.md#decisions) that collects the options and
+evidence.
 
 - [ ] Drone-side hardware (must be 64-bit if it runs ML-KEM, e.g. Raspberry Pi 4/5)
 - [ ] Real radio: SiK 915 MHz, LoRa, or UDP-only
+      ([decision page](docs/research/decisions/radio-link.md))
 - [ ] X25519 library for the classical baseline
 - [ ] Handshake authentication: pre-shared key mixed into KDF (prototype default) vs
       ML-DSA signatures

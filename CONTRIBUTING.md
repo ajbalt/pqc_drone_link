@@ -155,6 +155,22 @@ Conventions:
 - Tests that cover every KEM loop over all mode numbers and skip modes not yet built, so
   new modes are tested as soon as they are added to the table in `kem.c`.
 
+## Research wiki
+
+Outside knowledge (standards, papers, datasheets, radio and MAVLink specs) goes in the
+research wiki, [docs/research/](docs/research/README.md). Its README holds the full rules;
+the essentials are:
+
+- Cite sources by ID, linking into [sources.md](docs/research/sources.md). Never commit
+  source PDFs or their extracted text (copyright); every source has a URL or DOI instead.
+- Every number carries its unit, its conditions and its source, and says whether it is
+  a spec value, reported by others, or our own estimate.
+- Our own measurements go in `docs/results.md`, never in the wiki.
+- Open decisions are argued on their page in `docs/research/decisions/`. When one is
+  decided, update that page, tick it in README.md, and add any resulting rule here.
+- Use standard markdown links, not `[[wikilinks]]`, and run `python3 scripts/wiki_lint.py`
+  after editing the wiki.
+
 ## Code style
 
 - `snake_case` for functions and variables; module prefix on public functions
@@ -219,3 +235,4 @@ int rng_bytes(uint8_t *buf, size_t len);
    installed).
 4. New files are listed in `CMakeLists.txt` and in the repo layout in README.md.
 5. If a module was finished, `docs/design_notes.md` is updated.
+6. If the research wiki changed, `python3 scripts/wiki_lint.py` reports no issues.
