@@ -135,6 +135,8 @@ pqc_drone_link/
     │   ├── log.md             # Append-only change record
     │   └── decisions/         # One page per open decision: options, evidence, outcome
     ├── design_notes.md        # Why the code looks the way it does; status and progress log
+    ├── advisor_questions.md   # Scope questions sent to the advisor, with answers as they arrive
+    ├── guide_comparison.md    # Research Guide vs Build Guide: conflicts and interim decision
     ├── protocol_spec.md       # Exact handshake and packet formats
     ├── threat_model.md        # What attacks we defend against, and which we don't
     └── results.md             # Final write-up: when is the overhead acceptable?

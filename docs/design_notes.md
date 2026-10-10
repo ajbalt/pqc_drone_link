@@ -10,15 +10,21 @@ looks the way it does.
 
 ## Status
 
+> **On hold (2026-10-10).** Step 4 and everything after it wait for the advisor's answers
+> to [advisor_questions.md](advisor_questions.md). The Build Guide describes an
+> OpenSSL TLS 1.3 hybrid design that conflicts with the custom ML-KEM + Ascon design
+> (see [guide_comparison.md](guide_comparison.md)). Steps 0-3 stay valid either way
+> (the logger and timer are reusable). Do not write handshake or packet code yet.
+
 | Step | Module                         | Files                                   | Tested by           | State        |
 |------|--------------------------------|-----------------------------------------|---------------------|--------------|
 | 0    | Error codes                    | `src/common/errors.h`                   | (used by all tests) | Done         |
 | 3    | Key exchange interface         | `src/crypto/kem.h`, `kem.c`, `kem_none.c` | `tests/test_kem.c`  | Done         |
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
 | 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done        |
-| 4    | Packet formats                 | `docs/protocol_spec.md`, `src/protocol/messages.h` | —         | Next         |
-| 5    | UDP transport                  | `src/transport/udp.c`                   | —                   | Planned      |
-| 6    | Baseline apps                  | `src/app/drone.c`, `ground_station.c`, `telemetry_gen.c` | — | Planned      |
+| 4    | Packet formats                 | `docs/protocol_spec.md`, `src/protocol/messages.h` | —         | On hold      |
+| 5    | UDP transport                  | `src/transport/udp.c`                   | —                   | On hold      |
+| 6    | Baseline apps                  | `src/app/drone.c`, `ground_station.c`, `telemetry_gen.c` | — | On hold      |
 
 Steps were done out of numeric order on purpose: `kem.h` came first because
 its shape decides how cleanly ML-KEM and X25519 drop in during week 2.
@@ -315,3 +321,4 @@ key epoch, and possibly the mode.
 | 2026-10-07 | Fixed `errors.h` (two swallowed codes, truncated comments); `kem.h` / `kem.c` / `kem_none.c` + `test_kem`; `rng.c` + `test_rng`; first `ctest` tests |
 | 2026-10-08 | `timer.c` and `logger.c` + `test_metrics`; added `-Wmissing-prototypes`; started this file. `ctest`: 3/3 passing |
 | 2026-10-08 | Team docs: `README.md` + `CONTRIBUTING.md`. Research wiki in `docs/research/` (adapted from the maintainer's LLM wiki) with `scripts/wiki_lint.py`; first decision page: radio link |
+| 2026-10-10 | Read the Build Guide (LINK) and Research Guide p.8; found a conflict between them. Sent questions to the advisor. Added `docs/advisor_questions.md` and `docs/guide_comparison.md`; paused protocol work pending answers |
