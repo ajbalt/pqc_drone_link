@@ -3,6 +3,35 @@
 Append-only record of every change to the research wiki, newest first. The format is
 described in [README.md](README.md#log-entry-format).
 
+## 2026-10-11 — Research: Pi OpenSSL, certificates and clock, TCP under loss
+
+- **Sources added**: `arch-arm-pi4-clock-forum` (low trust), `debian-openssl-tracker`,
+  `linux-ip-sysctl`, `rfc-6298`, `rpi-docs-rtc`, `rpi-os-trixie-news`, `tc-netem-man`.
+- **Created**: `certificates-and-time.md`, `tcp-under-loss.md`.
+- **Updated**: `openssl-tls13-hybrid.md` (measured sizes, T04 result, Pi OS note), `sources.md`,
+  `index.md`.
+- **Findings**: Debian 13 (the base of current Raspberry Pi OS) ships OpenSSL 3.5.7, so a source build may
+  be unnecessary (to be checked on a Pi); the official Raspberry Pi docs name only the Pi 5 as having an RTC;
+  a lost SYN costs at least 1 s and a dead TCP connection can go unnoticed for about 15 minutes by
+  default.
+- **Our own measurements** (message sizes, T04 and clock tests on a development machine) went into
+  `docs/results.md`, not the wiki.
+- **Weak spots**: the Pi 4 RTC claim rests on forum posts; the netem direction behaviour and the Linux
+  minimum RTO are not sourced.
+
+## 2026-10-10 — Ingest: OpenSSL 3.5.9 source tree
+
+- **Source**: `openssl-3-5-9`, a shallow clone of tag `openssl-3.5.9` read in a scratch folder
+  (docs, `CHANGES.md`, `NEWS.md`, `INSTALL.md`, demos and the ML-KEM and TLS code). The tag
+  signature was not verified.
+- **Created**: `openssl-tls13-hybrid.md`.
+- **Updated**: `sources.md`, `index.md`.
+- **Findings**: the 3.5 default group list is hybrid-first, so configuration A must set the
+  group explicitly; `s_time` has no group option and `speed` has no ML-KEM entry, so T10 needs our
+  own benchmark client; the hybrid key shares are about 1,216 B and 1,120 B (estimates).
+- **Not covered**: Raspberry Pi OS's OpenSSL version, Pi build time, certificates and the Pi
+  clock, TCP under loss.
+
 ## 2026-10-10 — Decisions closed by the advisor (scope change)
 
 - **No new sources.** The advisor's email set the final scope: the Build Guide governs,

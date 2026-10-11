@@ -136,6 +136,10 @@ pqc_drone_link/
 │   └── configs/               # (planned) one file per experiment (config A/B, loss, duration)
 ├── scripts/
 │   ├── run_demo.sh            # (planned) assemble-and-run for another student
+│   ├── make_demo_certs.sh     # Demo CA and server certificate (backdated 1 day, 30 days)
+│   ├── tls_group_matrix.sh    # Config A/B, T03 and T04 cases on loopback (bring-up check)
+│   ├── tls_handshake_bytes.sh # Handshake bytes for A and B through a counting proxy
+│   ├── proxy_count.py         # Helper: counts TCP payload bytes per direction
 │   ├── netem_setup.sh         # (planned) packet-loss emulation
 │   ├── power_logger.py        # (planned) current/power sensor logging
 │   └── wiki_lint.py           # Health checks for the research wiki
@@ -154,7 +158,7 @@ pqc_drone_link/
     ├── bom.md                 # Parts, lab equipment, and purchases awaiting approval
     ├── design_notes.md        # Why the code looks the way it does; status and progress log
     ├── threat_model.md        # (planned) What attacks we defend against, and which we don't
-    └── results.md             # (planned) Final write-up of our own measurements
+    └── results.md             # Our own measurements (preliminary dev-machine results so far)
 ```
 
 ## Plan

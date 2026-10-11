@@ -23,6 +23,26 @@ Entry format:
 
 ---
 
+### arch-arm-pi4-clock-forum
+
+- **Title**: Forum threads "system time resets to incorrect time after reboot" and "systemd-timesyncd is unreliable on Raspberry Pi 4 (aarch64)"
+- **Authors / org**: Arch Linux ARM forum users. **User reports, not authoritative; low trust; Arch Linux ARM, not Raspberry Pi OS**
+- **Year**: 2021 and later
+- **URL / DOI**: https://archlinuxarm.org/forum/viewtopic.php?p=68356 and https://archlinuxarm.org/forum/viewtopic.php?p=67275
+- **Licence**: Copyrighted: paraphrase only
+- **File**: none (web)
+- **Ingested**: 2026-10-11, read from search summaries only; the threads themselves were not opened
+
+### debian-openssl-tracker
+
+- **Title**: Debian Security Tracker, source package `openssl` (available versions per release)
+- **Authors / org**: Debian Security Team
+- **Year**: 2026 (read 2026-10-11; changes with every update)
+- **URL / DOI**: https://security-tracker.debian.org/tracker/source-package/openssl
+- **Licence**: Public web page; cite and paraphrase
+- **File**: none (web)
+- **Ingested**: 2026-10-11, fetched
+
 ### expressvpn-pq-wireguard-guide
 
 - **Title**: Post-Quantum WireGuard: A Practical Implementation Guide
@@ -53,6 +73,16 @@ Entry format:
 - **File**: `raw/NIST.FIPS.204.pdf` (on the source drive)
 - **Ingested**: 2026-10-08, docling
 
+### linux-ip-sysctl
+
+- **Title**: IP Sysctl (Linux kernel documentation, `networking/ip-sysctl`)
+- **Authors / org**: The Linux kernel community
+- **Year**: 2026 (latest kernel docs)
+- **URL / DOI**: https://www.kernel.org/doc/html/latest/networking/ip-sysctl.html
+- **Licence**: GPL-2.0 documentation; paraphrase and short quotes
+- **File**: none (web)
+- **Ingested**: 2026-10-11, fetched; only the TCP timer entries were read (first 100,000 of about 130,000 characters)
+
 ### lorawan-rp-1-0-3
 
 - **Title**: LoRaWAN 1.0.3 Regional Parameters
@@ -73,6 +103,26 @@ Entry format:
 - **File**: `raw/MAVLink2.md` (on the source drive)
 - **Ingested**: 2026-10-08, none (markdown, read directly)
 
+### openssl-3-5-9
+
+- **Title**: OpenSSL 3.5.9 source tree: manual pages (`doc/`), `CHANGES.md`, `NEWS.md`, `INSTALL.md`, demos and code, read at tag `openssl-3.5.9` (commit `45e844fa2a14ec92d146bd8f5778ac130b6625fb`, 29 Sep 2026)
+- **Authors / org**: The OpenSSL Project
+- **Year**: 2026
+- **URL / DOI**: https://github.com/openssl/openssl/tree/openssl-3.5.9 (rendered manual pages: https://docs.openssl.org/3.5/)
+- **Licence**: Apache-2.0 (`LICENSE.txt`); paraphrase and cite file paths
+- **File**: none; shallow clone of the tag, read in a scratch folder. The tag signature was **not** verified
+- **Ingested**: 2026-10-10, read directly (no extraction needed)
+
+### rfc-6298
+
+- **Title**: RFC 6298, Computing TCP's Retransmission Timer
+- **Authors / org**: Paxson V, Allman M, Chu J, Sargent M (IETF)
+- **Year**: 2011
+- **URL / DOI**: https://www.rfc-editor.org/rfc/rfc6298
+- **Licence**: IETF Trust; short quotes
+- **File**: none (web)
+- **Ingested**: 2026-10-11, fetched; sections 2.1, 2.5, 5.5 and 5.7 read
+
 ### rfd900-datasheet
 
 - **Title**: RFD900 Radio Modem Data Sheet
@@ -82,6 +132,26 @@ Entry format:
 - **Licence**: Copyrighted: paraphrase only
 - **File**: `raw/RFD900 DataSheet.pdf` (on the source drive)
 - **Ingested**: 2026-10-08, docling
+
+### rpi-docs-rtc
+
+- **Title**: Raspberry Pi documentation, "Raspberry Pi hardware", Real Time Clock (RTC) section
+- **Authors / org**: Raspberry Pi Ltd
+- **Year**: 2026 (read 2026-10-11)
+- **URL / DOI**: https://www.raspberrypi.com/documentation/computers/raspberry-pi.html
+- **Licence**: Public web page; paraphrase
+- **File**: none (web)
+- **Ingested**: 2026-10-11, fetched; the section names only the Raspberry Pi 5 as having an RTC
+
+### rpi-os-trixie-news
+
+- **Title**: Raspberry Pi OS based on Debian 13 "Trixie" (news article)
+- **Authors / org**: CNX Software (secondary report)
+- **Year**: 2025 (6 Oct)
+- **URL / DOI**: https://www.cnx-software.com/2025/10/06/raspberry-pi-os-debian-13-trixie/
+- **Licence**: Copyrighted: paraphrase only
+- **File**: none (web)
+- **Ingested**: 2026-10-11, read from search summaries; the Raspberry Pi downloads page lists current trixie images
 
 ### sp-800-133r3-ipd
 
@@ -172,3 +242,13 @@ Entry format:
 - **Licence**: Copyrighted: paraphrase only
 - **File**: `raw/DS_SX1276-7-8-9_W_APP_V7.pdf` (on the source drive)
 - **Ingested**: 2026-10-08, docling (time-on-air formulas recovered from the PDF text layer)
+
+### tc-netem-man
+
+- **Title**: tc-netem(8), Network Emulator manual page
+- **Authors / org**: Linux iproute2 project
+- **Year**: n/a
+- **URL / DOI**: https://www.mankier.com/8/tc-netem (also https://man7.org/linux/man-pages/man8/tc-netem.8.html)
+- **Licence**: Free documentation; paraphrase
+- **File**: none (web)
+- **Ingested**: 2026-10-11, fetched from the mankier mirror

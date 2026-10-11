@@ -13,11 +13,11 @@ extension.
 
 | Relevance | Pages |
 |-----------|-------|
-| Useful for the mandatory system | [ML-KEM](ml-kem.md), [FIPS 203](src-fips-203.md), [key management](key-management.md), [random bit generation](random-bit-generation.md), [ML-DSA](ml-dsa.md) (why the certificate is not PQ authentication) |
+| Useful for the mandatory system | [OpenSSL TLS 1.3](openssl-tls13-hybrid.md), [certificates and time](certificates-and-time.md), [TCP under loss](tcp-under-loss.md), [ML-KEM](ml-kem.md), [FIPS 203](src-fips-203.md), [key management](key-management.md), [random bit generation](random-bit-generation.md), [ML-DSA](ml-dsa.md) (why the certificate is not PQ authentication) |
 | Background for the Ascon extension | [Ascon](ascon.md), [key derivation](key-derivation.md), [KEM usage](kem-usage.md), [rekeying](rekeying.md), SP 800-227, SP 800-232, SP 800-56C |
 | Out of scope (radios and MAVLink) | [LoRa](lora.md), [SiK radios](sik-radios.md), [MAVLink](mavlink.md) |
 
-Gaps: nothing yet on TLS 1.3, OpenSSL 3.5 hybrid groups, the MPU-6050 or Wi-Fi. Ingest the
+Gaps: nothing yet on the MPU-6050, the Pi and Pico UART and I2C setup, the durable queue, measurement methods, or Wi-Fi. Ingest the
 Build Guide first (`/ingest`).
 
 ## Decisions
@@ -44,8 +44,11 @@ Smaller and cross-cutting questions (Q1–Q18) are tracked in
 - [MAVLink](mavlink.md): MAVLink 2 message signing (a PSK, timestamps against replay, link IDs) and what is still needed for telemetry modelling
 - [ML-DSA](ml-dsa.md): signature sizes and categories, signing modes, randomness, and what signatures would add to our handshake
 - [ML-KEM](ml-kem.md): parameter sets, sizes, input checks, implicit rejection, randomness and shared-secret rules
+- [OpenSSL TLS 1.3 and the hybrid group](openssl-tls13-hybrid.md): 3.5.9 defaults, group-list syntax, config A and B settings, C API calls, benchmark tool limits
+- [Certificates and the Pi clock](certificates-and-time.md): OpenSSL version on Raspberry Pi OS, no RTC on a Pi 4, validity errors, proposals
 - [Open questions](open-questions.md): Q1–Q18, questions the team still has to answer
 - [Random bit generation](random-bit-generation.md): what an approved RBG is (SP 800-90A/B/C), where `getrandom()` stands, and the deviation statement
+- [TCP under loss](tcp-under-loss.md): RFC 6298 timers, dead-connection detection, expected handshake delay at 10 and 30% loss, `tc netem` models
 - [Rekeying](rekeying.md): every rekey trigger with a basis in the standards, and what a rekey must do
 - [SiK radios](sik-radios.md): RFD900/SiK rates, the serial bottleneck, a byte stream not a packet radio, settings that distort measurements
 
@@ -59,6 +62,7 @@ Smaller and cross-cutting questions (Q1–Q18) are tracked in
 - [SP 800-90A/B/C](src-sp-800-90.md): random bit generation (NIST, 2015–2025)
 - [SP 800-133 Rev. 3 (draft)](src-sp-800-133r3-ipd.md): key generation (NIST, 2026, initial public draft)
 - [SP 800-57 Part 1 Rev. 5](src-sp-800-57pt1.md): key management (NIST, 2020)
+- [OpenSSL 3.5.9](openssl-tls13-hybrid.md): read directly from the source tree; no separate summary page
 - [SX1276 datasheet](src-sx1276-datasheet.md): LoRa transceiver (Semtech, 2020)
 - [RFD900 datasheet](src-rfd900-datasheet.md): SiK 900 MHz radio modem (RFDesign, 2013)
 - [LoRaWAN 1.0.3 Regional Parameters](src-lorawan-rp-1-0-3.md): regional LoRa limits (LoRa Alliance, 2018)
