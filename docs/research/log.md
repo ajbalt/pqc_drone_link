@@ -15,6 +15,7 @@ described in [README.md](README.md#log-entry-format).
 - **Archive**: the custom stack was removed from `main` (tag `custom-stack-v1`). Wiki
   pages that mention `kem.h`, `kdf.c` or the shim describe archived code; `ml-kem.md` had its
   broken link to `kem.h` replaced.
+- **Index**: added a relevance table (current, extension background, out of scope).
 - **Not yet in the wiki**: the Build Guide and the Research Guide. They should be ingested
   with `/ingest`.
 

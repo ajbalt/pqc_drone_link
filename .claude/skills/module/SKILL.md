@@ -14,37 +14,37 @@ Claude's job is to:
 **Never write a new module's files into the repo.** Small fixes are allowed when the
 user asks for them ("fix the errors", "make both changes").
 
-Arguments: the module name (e.g. `udp`, `messages`, `kem_mlkem`), or `review <module>`.
+Arguments: the module name (e.g. `queue`, `uart_frame`, `dedup_store`), or `review <module>`.
 With no argument, pick the next step from the status table in `docs/design_notes.md`
 and confirm it with the user.
 
 ## Phase 1: draft (when the user asks for a module)
 
 1. **Read before designing:**
-   - The rules in `CONTRIBUTING.md`. `.claude/CLAUDE.md` has the same rules.
+   - The rules in `CONTRIBUTING.md`.
    - In `docs/design_notes.md`: conventions, the follow-ups that name this module,
      and the sections for modules this one depends on.
-   - `docs/protocol_spec.md`, for anything in `src/protocol/` or packet formats. The
-     spec must be written before the code. If the spec doesn't answer a question,
+   - `docs/telemetry_format.md`, for anything touching the UART frame, record, ACK, queue
+     or trust settings. The spec must be updated before the code. If the spec doesn't answer a question,
      ask; don't guess.
    - The headers this module will call.
 
 2. **Stop and ask if an open decision blocks the design.** The open decisions are in
-   `README.md`; examples are handshake authentication, KDF choice, and packet header
-   contents. Use AskUserQuestion and put a recommendation first.
+   `README.md`; examples are the persistent store, the Pico firmware language, and the
+   shared cipher suite. Use AskUserQuestion and put a recommendation first.
 
 3. **Draft in `.claude/drafts/<module>/`,** mirroring repo paths
    (`.claude/drafts/<module>/src/...`, `.claude/drafts/<module>/tests/test_<module>.c`).
-   `.claude/` is gitignored, so drafts survive across sessions and never reach the
+   `.claude/drafts/` is gitignored, so drafts survive across sessions and never reach the
    team. Overwrite any older draft of the same module.
    - Every public function goes in a header with full Doxygen: `@file`, `@brief`,
      directional `@param`, `@return` listing the `errors.h` codes, and
      `@warning`/`@note` for security contracts.
    - Static helpers get a `/** @brief */`, and `.c` comments explain *why*.
    - The test uses the project's `CHECK` macro pattern (copy it from
-     `tests/test_kem.c`), with adversarial cases: NULL, wrong length, full buffer,
+     `tests/test_rng.c`), with adversarial cases: NULL, wrong length, full buffer,
      unknown value, replayed/late/truncated input where relevant.
-   - Cite rules as "CONTRIBUTING.md crypto rule N", never CLAUDE.md.
+   - Cite rules as "CONTRIBUTING.md crypto rule N".
 
 4. **Verify before showing anything.** Run this from the repo root under **bash**.
    The default shell is zsh, which doesn't split `$FLAGS` into separate words, so
@@ -62,8 +62,6 @@ and confirm it with the user.
      reports. Fix the draft until it does.
    - Check that files end with a newline: clang-format does not add one.
    - Delete the `t`/`ts` binaries afterwards.
-   - For C++ (only `mlkem_shim.cpp`), use `g++ -std=c++20 -fno-exceptions -fno-rtti`
-     and link against the ml-kem headers in `third_party/` and `build/_deps`.
 
 5. **Present it in chat, in this order:**
    1. One line saying it was verified, and how: flags, -O0/-O2, sanitizers.
@@ -101,7 +99,6 @@ and confirm it with the user.
    - new follow-ups that later modules must honour; tick off any this module
      completed
    - a progress-log entry dated today
-2. Add new files to the repo layout in `README.md` and in `.claude/CLAUDE.md`.
-3. If the module introduced a new rule or convention, add it to both
-   `CONTRIBUTING.md` and `.claude/CLAUDE.md`, with the same wording.
+2. Add new files to the repo layout in `README.md`.
+3. If the module introduced a new rule or convention, add it to `CONTRIBUTING.md`.
 4. Suggest the commit file list and message, and the next module. Don't commit.

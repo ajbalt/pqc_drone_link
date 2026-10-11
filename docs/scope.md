@@ -55,13 +55,25 @@ is not in the T10 comparison.
 
 ## Mandatory tests
 
-T01–T10 from the Build Guide (see [guide_comparison.md](guide_comparison.md)): tilt to
-OLED, forced hybrid group, wrong cert or hostname, downgrade rejection, replay, 60 s
-outage, restart of Pi A during an outage, 10% and 30% loss, tampered ciphertext, and the
-100-vs-100 handshake comparison.
+From the Build Guide. Mark PASS only from evidence, and record each result in
+`tests/positive_and_attack_tests.csv` or `tests/fault_injection.csv`.
+
+| Test | What must happen |
+|------|------------------|
+| T01 | Tilting the rover sensor changes the relay OLED sample |
+| T02 | Log shows negotiated `X25519MLKEM768` |
+| T03 | Untrusted cert or wrong hostname: TLS fails closed |
+| T04 | Classical-only offer to a hybrid-only peer: handshake fails, no silent downgrade |
+| T05 | Replayed application seq: one delivery count only |
+| T06 | 60 s Wi-Fi interruption: queue keeps growing, reconnect drains it |
+| T07 | Restart Pi A during an outage: persisted records remain for retry |
+| T08 | 10% and 30% emulated loss: all accepted records eventually delivered |
+| T09 | Tampered TLS ciphertext: integrity check rejects it |
+| T10 | 100 hybrid vs 100 classical handshakes: latency, memory and byte-overhead CSV |
 
 ## Order of work
 
+Gates L1–L10 (details and evidence files in [schedule.md](schedule.md)):
 L1–L4 hardware, IMU, UART, OLED and plain diagnostic. L5–L6 OpenSSL and hybrid TLS.
 L7–L9 persistent queue, ACKs, dedup, outage recovery. L10 loss tests and final
 comparison. If a gate fails, fix it before moving on. **No** Ascon, custom protocol or

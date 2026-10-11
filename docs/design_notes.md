@@ -4,8 +4,8 @@ A running record of what has been built, the design choices behind it, and
 the reasoning a new team member needs to understand the code. Add a section
 each time a module is finished.
 
-The rules themselves live in `CONTRIBUTING.md`; packet formats and the
-handshake live in `docs/protocol_spec.md`. This file explains *why* the code
+The rules themselves live in `CONTRIBUTING.md`; message formats live in
+`docs/telemetry_format.md`. This file explains *why* the code
 looks the way it does.
 
 ## Status
@@ -14,32 +14,26 @@ looks the way it does.
 > OpenSSL TLS 1.3 with `X25519MLKEM768`, compared with classical X25519 TLS. The custom
 > ML-KEM + Ascon work was **archived** the same day: it is preserved at tag
 > `custom-stack-v1` and branch `archive/custom-stack`, and removed from `main`. Steps 0-2
-> (errors, RNG helpers, timer and logger) remain in use. The sections below about `kem.h`
-> describe archived code and are kept for the record. See [scope.md](scope.md) and
+> (errors, timer and logger, RNG helpers) remain in use. See [scope.md](scope.md) and
 > [guide_comparison.md](guide_comparison.md).
 
 | Step | Module                         | Files                                   | Tested by           | State        |
 |------|--------------------------------|-----------------------------------------|---------------------|--------------|
 | 0    | Error codes                    | `src/common/errors.h`                   | (used by all tests) | Done         |
-| 3    | Key exchange interface         | `src/crypto/kem.h`, `kem.c`, `kem_none.c` | `tests/test_kem.c`  | Archived     |
+| 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done      |
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
-| 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done        |
-| 4    | Packet formats                 | `docs/protocol_spec.md`, `src/protocol/messages.h` | —         | Archived     |
-| 5    | UDP transport                  | `src/transport/udp.c`                   | —                   | Archived     |
-| 6    | Baseline apps                  | `src/app/drone.c`, `ground_station.c`, `telemetry_gen.c` | — | Archived     |
+| 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
-Steps were done out of numeric order on purpose: `kem.h` came first because
-its shape decides how cleanly ML-KEM and X25519 drop in during week 2.
+Pi services, Pico firmware and the evidence folder are not started; they follow the gates
+in [schedule.md](schedule.md).
 
 ### Files added beyond the original layout
 
 | File                    | Why it exists                                               |
 |-------------------------|-------------------------------------------------------------|
-| `src/crypto/kem.c`      | Mode lookup and length checks, in one place for every KEM   |
 | `src/crypto/rng.h`      | Lets other files call `rng_bytes`, `secure_wipe`, `ct_memcmp` |
 | `src/metrics/timer.h`   | Public interface to `timer.c`                               |
 | `src/metrics/logger.h`  | Public interface to `logger.c`                              |
-| `tests/test_kem.c`      | kem.h interface tests (`test_kem_vectors.c` is reserved for official KATs) |
 | `tests/test_rng.c`      | rng.c tests                                                 |
 | `tests/test_metrics.c`  | timer.c and logger.c tests                                  |
 
@@ -59,7 +53,7 @@ These are listed in the repo layout in README.md.
   at compile time on the exact line, instead of as a confusing
   "undefined reference" from the linker. Helpers that aren't in a header
   must be `static`.
-- **Includes** are relative to `src/`: `#include "crypto/kem.h"`,
+- **Includes** are relative to `src/`: `#include "crypto/rng.h"`,
   `#include "common/errors.h"`.
 - **Doxygen.** API docs go in the header; `.c` files explain *why* with
   plain `/* */` comments. Static helpers and static arrays get a short
@@ -102,71 +96,11 @@ a test that uses every value does.
 
 ---
 
-## kem.h: the common key exchange interface (archived)
+## kem.h and the key-exchange layer (archived)
 
-> Archived with the custom stack (tag `custom-stack-v1`). The files no longer exist in
-> `main`. This section is kept to explain the earlier design.
-
-**What it is.** The single interface every key exchange mode implements.
-Protocol and app code pick a mode once, from config, and then only call
-through the table they get back.
-
-```
-Ground (responder)                         Drone (initiator)
-keygen() -> pk, sk
-                 ---- pk ---->
-                                           encaps(pk) -> ct, ss
-                 <---- ct ----
-decaps(sk, ct) -> ss                       (both sides now hold the same ss)
-```
-
-**Design choices**
-
-- **Every mode is a KEM** (keygen / encaps / decaps). X25519 fits: its
-  "ciphertext" is the initiator's temporary public key. `none` fits with
-  every size set to 0. This is what keeps the key exchange the *only*
-  variable between modes: all modes run through the same handshake code.
-- **A table of function pointers (`struct kem_ops`)**, looked up with
-  `kem_get(mode)` or `kem_from_name("mlkem768")`. Protocol code never names
-  a specific KEM and never branches on the mode (crypto rule 2).
-- **The implementation tables are not in `kem.h`.** `kem_none_ops` etc. are
-  declared `extern` inside `kem.c` only, so the lookup functions are the
-  only way to reach them.
-- **Wrappers check every length** (`kem_keygen`, `kem_encaps`,
-  `kem_decaps`) before calling the implementation. One place to review
-  instead of five, and every mode rejects bad input the same way. The
-  implementations can assume correctly sized buffers.
-- **Two kinds of length check:**
-  - Our own output buffers only need to be *big enough* (`cap < len` fails,
-    returning `PQC_ERR_BUFFER_TOO_SMALL`).
-  - Data from the peer must be *exactly* the right size (`len != expected`
-    fails). A short or long public key or ciphertext is a malformed message,
-    returning `PQC_ERR_KEM_ENCAPS` / `PQC_ERR_KEM_DECAPS`.
-  - A wrong length for our *own* secret key is a bug on our side, so it
-    returns `PQC_ERR_INVALID_ARG`.
-- **Fixed maximum sizes** (`KEM_MAX_PK_BYTES` etc.) taken from ML-KEM-1024,
-  the largest parameter set. Callers allocate fixed buffers of these sizes;
-  no `malloc` on the handshake path.
-- **Mode numbers are fixed** (`KEM_MODE_NONE = 0` … `KEM_MODE_MLKEM1024 = 4`)
-  because they will be sent in the handshake and written to logs.
-- **Lookup failures clear the output pointer** (`*out = NULL`), so a caller
-  that ignores the error can't keep using a table from an earlier call.
-
-**The `none` mode**
-
-- `ss_len = 0` is what stops `none` from ever producing an encryption key:
-  `kdf.c` must reject a zero-length shared secret.
-- The no-downgrade check in `handshake.c` stops a secured session from being
-  talked into `none`.
-
-**Handshake authentication is independent of this interface.** A pre-shared
-key would be mixed in by `kdf.c`; signatures would be added in
-`handshake.c`. Neither changes `kem.h`, so that open decision did not block
-this step.
-
-**Tests (`test_kem.c`)** loop over every mode number and skip modes that
-aren't built yet, so ML-KEM and X25519 are tested automatically as soon as
-they are added to the table in `kem.c`.
+Removed from `main` on 2026-10-10 with the rest of the custom ML-KEM + Ascon stack. The
+code and the full design notes for it are at tag `custom-stack-v1`
+(`git show custom-stack-v1:docs/design_notes.md`).
 
 ---
 
@@ -290,13 +224,6 @@ it isn't listed in `CMakeLists.txt`.
 These were promised by code written so far; whoever writes the module must
 implement them.
 
-- [ ] *(archived)* `kdf.c` rejects a zero-length shared secret (keeps `none` from
-      producing a key).
-- [ ] *(archived)* `handshake.c` rejects any mode other than the configured one with
-      `PQC_ERR_HS_MODE_MISMATCH` (no downgrade).
-- [ ] *(archived)* Callers of `kem_keygen` / `kem_encaps` / `kem_decaps` call
-      `secure_wipe()` on `sk` and `ss` on every exit path.
-- [ ] *(archived)* Each KEM implementation wipes its own partial outputs if it fails.
 - [ ] `scripts/power_logger.py` timestamps with `time.monotonic_ns()`.
 - [ ] Pi services call `logger_flush()` only outside timed regions.
 - [ ] Apps size the log buffer for a whole run (telemetry rate × run
@@ -306,14 +233,7 @@ implement them.
 
 ## Open decisions still pending
 
-See "Open decisions" in README.md. None of them blocked the work so far.
-The next one that matters is **handshake authentication** (pre-shared key
-in the KDF vs ML-DSA signatures), which needs deciding before
-`handshake.c` and `kdf.c`.
-
-The next step (packet formats) needs the packet header settled in
-`docs/protocol_spec.md` first: at least packet type, sequence number and
-key epoch, and possibly the mode.
+See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.md).
 
 ---
 

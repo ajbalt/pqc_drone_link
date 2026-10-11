@@ -75,4 +75,4 @@ The extractor is a Windows program, so pass it **Windows paths**: `$(wslpath -w 
   linter go in git.
 - **Our own measurements never go in the wiki;** they belong in `docs/results.md`.
 - **If a source contradicts our code or CONTRIBUTING.md** (for example, a size
-  constant in `kem.h`), flag it to the user. Don't change code from inside an ingest.
+  constant in `docs/telemetry_format.md`), flag it to the user. Don't change code from inside an ingest.

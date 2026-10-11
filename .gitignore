@@ -824,3 +824,10 @@ FodyWeavers.xsd
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,visualstudio,clion,cmake,c++,python,pycharm
+
+# Claude Code local files
+.claude/drafts/
+.claude/settings.local.json
+
+# Obsidian vault settings
+.obsidian/

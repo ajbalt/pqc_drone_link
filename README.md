@@ -55,26 +55,12 @@ files and the evidence folder do not exist yet; they are created as gates L1–L
 
 ## Gates L1–L10
 
-Work follows these in order; a gate is done only when the instructor has initialed its
-evidence (a PASS/FAIL log, the code revision and board IDs, and a photo or trace).
-
-| Gate | What |
-|------|------|
-| L1 | Power and network: both Pis boot and join the lab Wi-Fi; UART pins at 3.3 V |
-| L2 | IMU on Pico A, 10 Hz samples that change when tilted |
-| L3 | UART: 100 records match; OLED shows the test count |
-| L4 | Plain Wi-Fi socket diagnostic, isolated network only |
-| L5 | OpenSSL 3.5+ on both Pis; hybrid group shown by `s_client` |
-| L6 | TLS app sockets: hybrid only, certificate and hostname verified |
-| L7 | Record format and persistent queue on Pi A |
-| L8 | Durable ACK and deduplication on Pi B |
-| L9 | 60 s outage, reconnect, replay |
-| L10 | 0/10/30% loss; 100+ handshakes, hybrid vs X25519 |
-
-Schedule and owners: [docs/schedule.md](docs/schedule.md),
-[docs/responsibility_matrix.md](docs/responsibility_matrix.md). Parts:
-[docs/bom.md](docs/bom.md). The ten mandatory tests (T01–T10) are listed in
-[docs/scope.md](docs/scope.md).
+Work follows ten gates in order, from power and wiring (L1) through hybrid TLS (L5–L6),
+persistence and outage recovery (L7–L9), to the 0/10/30% loss and 100+ handshake comparison
+(L10). A gate is done only when the instructor has initialed its evidence. The gates, evidence
+files, schedule and owners are in [docs/schedule.md](docs/schedule.md) and
+[docs/responsibility_matrix.md](docs/responsibility_matrix.md). The ten mandatory tests are in
+[docs/scope.md](docs/scope.md). Parts: [docs/bom.md](docs/bom.md).
 
 ## Getting the code
 

@@ -21,7 +21,7 @@ changed=$( { git diff --name-only --diff-filter=ACMR "$base" --;
 added=$( { git diff --name-only --diff-filter=A "$base" --;
            git ls-files --others --exclude-standard; } | sort -u |
          grep -v '^third_party/' )
-code=$(printf '%s\n' "$changed" | grep -E '\.(c|h|cpp)$' || true)
+code=$(printf '%s\n' "$changed" | grep -E '\.(c|h)$' || true)
 
 if [ -z "$changed" ]; then
   echo "No changes since $base. Pass a base ref to check commits, e.g. check.sh HEAD~1"
@@ -33,12 +33,12 @@ if [ -n "$code" ]; then
   out=$(clang-format --dry-run $code 2>&1 | grep 'warning:' | cut -d: -f1 | sort -u)
   if [ -z "$out" ]; then pass "clang-format"
   else bad "clang-format: run clang-format -i on:"; printf '%s\n' "$out" | detail; fi
-else pass "clang-format (no C/C++ changes)"; fi
+else pass "clang-format (no C changes)"; fi
 
 # 2. final newline on changed text files
 nonl=""
 for f in $changed; do
-  case "$f" in *.c|*.h|*.cpp|*.md|*.txt|*.sh|*.py|*.cmake|CMakeLists.txt) ;; *) continue ;; esac
+  case "$f" in *.c|*.h|*.md|*.txt|*.sh|*.py|*.cmake|CMakeLists.txt) ;; *) continue ;; esac
   [ -s "$f" ] && [ -n "$(tail -c1 "$f")" ] && nonl="$nonl$f"$'\n'
 done
 if [ -z "$nonl" ]; then pass "final newlines"
@@ -72,9 +72,9 @@ else
   else warn "Doxygen not installed; docs check skipped"; fi
 fi
 
-# 6. new .c/.cpp files are built by CMake
+# 6. new .c files are built by CMake
 missing=""
-for f in $(printf '%s\n' "$changed" | grep -E '^(src|tests)/.*\.(c|cpp)$'); do
+for f in $(printf '%s\n' "$changed" | grep -E '^(src|tests)/.*\.c$'); do
   grep -q "$f" CMakeLists.txt || missing="$missing$f"$'\n'
 done
 if [ -z "$missing" ]; then pass "C sources listed in CMakeLists.txt"
@@ -88,29 +88,18 @@ done
 if [ -z "$missing" ]; then pass "new files in README layout"
 else warn "new files not in README repo layout:"; printf '%s' "$missing" | detail; fi
 
-# 8. shared files must not cite the personal CLAUDE.md
-refs=$(grep -rn 'CLAUDE' src tests docs README.md CONTRIBUTING.md CMakeLists.txt 2>/dev/null)
-if [ -z "$refs" ]; then pass "no CLAUDE.md references in shared files"
-else bad "shared files cite CLAUDE.md (teammates don't have it); use CONTRIBUTING.md:"
-     printf '%s\n' "$refs" | detail; fi
-
-# 9. design notes reminder
+# 8. design notes reminder
 if printf '%s\n' "$changed" | grep -qE '^src/' &&
    ! printf '%s\n' "$changed" | grep -qx 'docs/design_notes.md'; then
   warn "src/ changed but docs/design_notes.md didn't: update it if a module was finished"
 else pass "design notes"; fi
 
-# 10. research wiki lint (only when the wiki or its linter changed)
+# 9. research wiki lint (only when the wiki or its linter changed)
 if printf '%s\n' "$changed" | grep -qE '^docs/research/|^scripts/wiki_lint\.py$'; then
   out=$(python3 scripts/wiki_lint.py 2>&1); rc=$?
   if [ $rc -eq 0 ]; then pass "research wiki lint"
   else bad "research wiki lint: run python3 scripts/wiki_lint.py"
        printf '%s\n' "$out" | grep -E '^\s+x ' | head -20 | detail; fi
-fi
-
-# 11. rules files changed? (sync is checked by Claude, not here)
-if printf '%s\n' "$changed" | grep -qx 'CONTRIBUTING.md'; then
-  warn "CONTRIBUTING.md changed: make sure .claude/CLAUDE.md matches"
 fi
 
 echo

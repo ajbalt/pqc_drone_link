@@ -1,6 +1,6 @@
 ---
 name: precommit
-description: Run the PQC drone link before-commit checklist (format, final newlines, warning-free build, ctest, Doxygen, CMake/README listings, design notes, CLAUDE.md vs CONTRIBUTING.md sync) and report what to fix. Use when the user says /precommit, asks "is this ready to commit", or before suggesting a commit.
+description: Run the PQC drone link before-commit checklist (format, final newlines, warning-free build, ctest, Doxygen, CMake/README listings, design notes, wiki lint) and report what to fix. Use when the user says /precommit, asks "is this ready to commit", or before suggesting a commit.
 ---
 
 # Pre-commit check
@@ -19,18 +19,9 @@ changes, or against a range if the user names one (e.g. "check the last commit")
    `HEAD~1` if so.
 
 2. **Do the checks that need judgment.** Only do these for files that changed.
-   - **Rules sync.** If `CONTRIBUTING.md` or `.claude/CLAUDE.md` changed, compare
-     these sections in both files:
-     - crypto rules: the numbering must be identical, because code comments cite
-       "CONTRIBUTING.md crypto rule N"
-     - language and flags
-     - logging
-     - testing
-     - code style
-
-     Also compare the repo layout in `README.md` with CLAUDE.md, and the open
-     decisions in `README.md` with CLAUDE.md. Report any drift and which file has
-     the newer wording.
+   - **Rules.** If `CONTRIBUTING.md` changed, check that README.md, `docs/` and code
+     comments don't contradict it, and that crypto rule numbers weren't renumbered
+     (code comments cite them).
    - **Design notes.** If a module looks finished (it has a source file and a passing
      test), check that `docs/design_notes.md` has all of these:
      - a status row for it marked Done
@@ -51,8 +42,7 @@ changes, or against a range if the user names one (e.g. "check the last commit")
 
 - **Don't modify files** unless the user asks. The user types code themselves to
   learn. Reporting `clang-format -i <files>` is better than running it silently.
-  When asked to fix, mechanical fixes (formatting, newlines, CLAUDE.md references)
-  are fine.
+  When asked to fix, mechanical fixes (formatting, newlines) are fine.
 - **Never commit or push.** The user does that.
 - **Never report a pass that the script didn't print.** If the script couldn't run,
   for example because `build/` is missing, say so.

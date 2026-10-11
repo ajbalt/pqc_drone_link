@@ -4,6 +4,22 @@ Catalog of every page in the research wiki, one line each. Read this first when
 answering a question. How the wiki works: [README.md](README.md). Sources:
 [sources.md](sources.md). Change history: [log.md](log.md).
 
+## How to use this wiki now
+
+The mandatory system (OpenSSL TLS 1.3, Wi-Fi, Pi 4B + Pico 2) is defined in
+[scope](../scope.md). Most pages here were written for the earlier custom ML-KEM + Ascon
+design over SiK or LoRa radios, and are kept as background for the possible research
+extension.
+
+| Relevance | Pages |
+|-----------|-------|
+| Useful for the mandatory system | [ML-KEM](ml-kem.md), [FIPS 203](src-fips-203.md), [key management](key-management.md), [random bit generation](random-bit-generation.md), [ML-DSA](ml-dsa.md) (why the certificate is not PQ authentication) |
+| Background for the Ascon extension | [Ascon](ascon.md), [key derivation](key-derivation.md), [KEM usage](kem-usage.md), [rekeying](rekeying.md), SP 800-227, SP 800-232, SP 800-56C |
+| Out of scope (radios and MAVLink) | [LoRa](lora.md), [SiK radios](sik-radios.md), [MAVLink](mavlink.md) |
+
+Gaps: nothing yet on TLS 1.3, OpenSSL 3.5 hybrid groups, the MPU-6050 or Wi-Fi. Ingest the
+Build Guide first (`/ingest`).
+
 ## Decisions
 
 One page per open decision in the repo README. The 2026-10-10 advisor decision closed all four; see [scope](../scope.md).

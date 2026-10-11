@@ -37,8 +37,8 @@ Read the pages. Then report:
    ticked (or the reverse).
 6. **Unsourced claims:** sentences with numbers or factual claims that have neither a
    citation nor *(needs source)*.
-7. **Wiki vs code:** numbers in the wiki that our code also hard-codes, such as the
-   `KEM_MAX_*` sizes in `src/crypto/kem.h`. Flag any mismatch. Don't edit the code.
+7. **Wiki vs code:** numbers in the wiki that our code also hard-codes, such as
+   constants in `src/` or in `docs/telemetry_format.md`. Flag any mismatch. Don't edit the code.
 
 Report the findings as a numbered list, each with a suggested fix. If the user
 approves edits, make them, then add a log entry titled `Lint: <what was fixed>`. The
