@@ -49,8 +49,9 @@ At a 3.3 V I/O supply (`VDD IO`), from Table 3:
 | Pull-up and pull-down resistor | 18 (47 typical) | 73 | kΩ |
 
 - **The Pi and a 3.3 V Pico are level-compatible**: a Pico output of 3.3 V is above the Pi's 2.0 V input-high
-  minimum, and the Pi's output-high minimum of about 2.9 V is above the Pico's input threshold *(needs the Pico 2 datasheet, see
-  [Pico 2](pico-2.md))*.
+  minimum, and the Pi's output-high minimum is about 2.9 V (3.3 V minus 0.4 V, our arithmetic). The RP2350 input-high minimum
+  is 2.0 V and input-low maximum 0.8 V at 3.3 V I/O, so levels are compatible in both directions
+  ([RP2350](rp2350.md)).
 - **The datasheet does not say GPIO is or is not 5 V tolerant.** The only absolute maximum is the 5 V input
   (-0.5 V to 6.0 V). Treat all GPIO as 3.3 V only, as the Build Guide says.
 - Rise and fall times are listed as "TBD" in the datasheet (Table 4), so there is no spec value for UART edge speed.
@@ -60,7 +61,8 @@ At a 3.3 V I/O supply (`VDD IO`), from Table 3:
 - The board needs a good USB-C supply: **5 V at 3 A**, or 2.5 A if attached USB devices draw under 500 mA
   (§4.1).
 - Total downstream USB current is limited to about **1.1 A** across the four sockets (§5.3). A Pico powered from
-  a Pi USB port is well inside this; the Pico's current needs come from [Pico 2](pico-2.md).
+  a Pi USB port is well inside this: the bare Pico 2 draws about 12 mA at 5 V in a typical serial demo
+  ([Pico 2](pico-2.md)), a typical value rather than a guaranteed maximum.
 - Our own current and power measurements go in [results.md](../results.md), not here.
 
 ## Thermals and benchmarking

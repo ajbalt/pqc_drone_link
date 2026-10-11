@@ -3,6 +3,43 @@
 Append-only record of every change to the research wiki, newest first. The format is
 described in [README.md](README.md#log-entry-format).
 
+## 2026-10-11 — Ingest: SSD1306 datasheet
+
+- **Source**: `ssd1306-datasheet` (Solomon Systech, Advance Information, Apr 2008), docling (273 s, 265,588
+  characters). The I2C section, timing table, GDDRAM, reset state, power sequence and command table were read;
+  the initialization flow chart is an image and was not.
+- **Created**: `ssd1306.md`.
+- **Updated**: `sources.md`, `index.md`, `pico-2.md` and `pico-2-pinout.md` (links).
+- **Gaps**: no tested initialization sequence or charge-pump bit values in the text; module-specific supply,
+  address and pull-ups are not covered. The document is preliminary and may differ from current modules.
+- **Not ingested**: `RP-008307-DS-2-pico-datasheet.pdf` (the RP2040 Pico, not our board).
+
+## 2026-10-11 — Ingest: Pi 4, Pico 2, MPU-6050 datasheets, MPU register map, Pico 2 pinout, RP2350
+
+- **Sources**: `pi-4-datasheet`, `pico-2-datasheet`, `mpu-6050-datasheet`, `rm-mpu-6000a`, `pico-2-pinout`,
+  `rp2350-datasheet`. Extraction: docling for the first four (85, 157, 113 and 208 s); the Pico 2 pinout is a
+  vector graphic, so its pins were read from a rendered image; the RP2350 datasheet (1,371 pages) was
+  dumped with pypdf and read selectively (about 12 sections), because the docling run was too slow.
+- **How**: the Pico 2 datasheet, register map, pinout and RP2350 pages were written by subagents, one per
+  document. Their numbers and register addresses were spot-checked against the extracted text, and the
+  pinout was checked against the rendered poster.
+- **Created**: `raspberry-pi-4.md`, `pico-2.md`, `pico-2-pinout.md`, `rp2350.md`, `mpu-6050.md`,
+  `mpu-6050-registers.md`.
+- **Updated**: `sources.md`, `index.md`, `certificates-and-time.md` (the Pi 4 datasheet lists no RTC).
+- **Collisions and corrections**:
+  - The file first supplied as the Pico datasheet (`RP-008307-DS-2-pico-datasheet.pdf`) is the original RP2040
+    Pico, not the Pico 2, so it was **not** registered or used. It remains in `raw/`.
+  - The pinout subagent marked the UART0 pair on pins 16/17 as the default shade; the rendered poster shows
+    only pins 1 and 2 as default. Corrected.
+  - The register map says the accelerometer's own output rate is fixed at 1 kHz; the datasheet describes a
+    programmable output data rate. Both are kept on `mpu-6050.md`.
+- **Filled gaps**: the Pico 2 pin numbers and UART0/I2C0 functions (all seven items of our Pico wiring
+  confirmed), GPIO levels and 5 V tolerance, I2C pull-ups, UART limits, errata, and the MPU-6050 register
+  map. Remaining: which RP2350 stepping the Pico 2 ships (erratum E9 affects A2), the SSD1306 datasheet.
+- **Flagged for the team** (no code or rules changed during the ingest): consider recording CPU
+  temperature and frequency in every benchmark log (the Pi 4 throttles to stay under 85 C). The Pico's I2C
+  bus needs external pull-ups, and an MPU-6050 driver must wake the chip first (it resets asleep).
+
 ## 2026-10-11 — Research: Pi OpenSSL, certificates and clock, TCP under loss
 
 - **Sources added**: `arch-arm-pi4-clock-forum` (low trust), `debian-openssl-tracker`,

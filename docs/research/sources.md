@@ -133,6 +133,26 @@ Entry format:
 - **File**: `raw/RP-008341-DS-1-raspberry-pi-4-datasheet.pdf` (on the source drive)
 - **Ingested**: 2026-10-11, docling
 
+### pico-2-datasheet
+
+- **Title**: Raspberry Pi Pico 2 Datasheet: An RP2350-based microcontroller board (RP-008299-DS-3, Release 5, build date 03/07/2026)
+- **Authors / org**: Raspberry Pi Ltd
+- **Year**: 2026 (copyright 2022-2026; first release 2024)
+- **URL / DOI**: https://datasheets.raspberrypi.com/pico/pico-2-datasheet.pdf
+- **Licence**: Creative Commons Attribution-NoDerivatives 4.0 International (CC BY-ND), as printed in the colophon; paraphrase only
+- **File**: `raw/RP-008299-DS-3-pico-2-datasheet.pdf` (on the source drive)
+- **Ingested**: 2026-10-11, docling (the pinout figures are images and did not extract)
+
+### pico-2-pinout
+
+- **Title**: Raspberry Pi Pico Pinout, for Pico 1 and Pico 2 (poster RP-008301-DS-1)
+- **Authors / org**: Raspberry Pi Ltd
+- **Year**: not printed on the page
+- **URL / DOI**: https://datasheets.raspberrypi.com/pico/Pico-2-Pinout.pdf
+- **Licence**: Copyrighted: paraphrase only (no licence text on the page)
+- **File**: `raw/RP-008301-DS-1-Pico-2-Pinout.pdf` (on the source drive)
+- **Ingested**: 2026-10-11, docling gave only the title and legend; the pin labels are vector outlines, so pins were read from a rendered image of the page (pypdfium2) and checked by the lead
+
 ### rfc-6298
 
 - **Title**: RFC 6298, Computing TCP's Retransmission Timer
@@ -152,6 +172,26 @@ Entry format:
 - **Licence**: Copyrighted: paraphrase only
 - **File**: `raw/RFD900 DataSheet.pdf` (on the source drive)
 - **Ingested**: 2026-10-08, docling
+
+### rm-mpu-6000a
+
+- **Title**: MPU-6000 and MPU-6050 Register Map and Descriptions, Revision 4.0
+- **Authors / org**: InvenSense
+- **Year**: 2012 (Revision 4.0, 9 Mar 2012; the page footer says 2011)
+- **URL / DOI**: https://invensense.tdk.com/products/motion-tracking/6-axis/mpu-6050/ (product page; a direct link to this PDF was not verified)
+- **Licence**: Copyrighted: paraphrase only
+- **File**: `raw/RM-MPU-6000A.pdf` (on the source drive)
+- **Ingested**: 2026-10-11, docling
+
+### rp2350-datasheet
+
+- **Title**: RP2350 Datasheet: A microcontroller by Raspberry Pi (RP-008373-DS-3, Release 8, build date 01/10/2026)
+- **Authors / org**: Raspberry Pi Ltd
+- **Year**: 2022-2026 (this release 2026)
+- **URL / DOI**: https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+- **Licence**: Creative Commons Attribution-NoDerivatives 4.0 International (CC BY-ND), as printed in the colophon; paraphrase only
+- **File**: `raw/RP-008373-DS-3-rp2350-datasheet.pdf` (on the source drive)
+- **Ingested**: 2026-10-11, read selectively (about 12 sections of 1,371 pages) from text dumped with pypdf; the docling run was started but not used, so no extracted `.md` is relied on
 
 ### rpi-docs-rtc
 
@@ -252,6 +292,16 @@ Entry format:
 - **Licence**: Public domain (US gov)
 - **File**: `raw/NIST.SP.800-90C.pdf` (on the source drive)
 - **Ingested**: 2026-10-08, docling
+
+### ssd1306-datasheet
+
+- **Title**: SSD1306 Advance Information: 128 x 64 Dot Matrix OLED/PLED Segment/Common Driver with Controller (the document says it describes a new product and is subject to change)
+- **Authors / org**: Solomon Systech
+- **Year**: 2008 (the document shows "Apr 2008"; revision not printed on the cover)
+- **URL / DOI**: not printed in the document body; manufacturer site http://www.solomon-systech.com (needs a direct link)
+- **Licence**: Copyrighted: paraphrase only
+- **File**: `raw/SSD1306.pdf` (on the source drive)
+- **Ingested**: 2026-10-11, docling (273 s, 265,588 characters)
 
 ### sx1276-datasheet
 
