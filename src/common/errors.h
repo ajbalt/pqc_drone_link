@@ -33,7 +33,8 @@ enum pqc_err {
   PQC_ERR_RNG_FAIL = -10, /**< getrandom() failed or returned short;
                              never fall back to a weaker source */
 
-  /* Key exchange, kem.h (-20 .. -29) */
+  /* Key exchange (-20 .. -29). Used by the archived custom stack (tag
+   custom-stack-v1); kept because code values are fixed once written. */
   PQC_ERR_KEM_UNSUPPORTED = -20, /**< mode not compiled in or unknown */
   PQC_ERR_KEM_KEYGEN = -21,      /**< key pair generation failed */
   PQC_ERR_KEM_ENCAPS = -22,      /**< encapsulation failed; includes a malformed
@@ -64,14 +65,14 @@ enum pqc_err {
                                     needed */
 
   /* Handshake, handshake.c (-60 .. -69) */
-  PQC_ERR_HS_BAD_STATE = -60,   /**< message not valid in current state */
-  PQC_ERR_HS_BAD_MESSAGE = -61, /**< malformed or wrong-length handshake
-                                   message */
-  PQC_ERR_HS_MODE_MISMATCH =
-      -62,                  /**< peer offered a different KEM. Always
-                               fatal: we never downgrade (crypto rule 8) */
-  PQC_ERR_HS_TIMEOUT = -63, /**< handshake did not complete in time */
-  PQC_ERR_HS_AUTH = -64,    /**< peer failed authentication (PSK/signature) */
+  PQC_ERR_HS_BAD_STATE = -60,     /**< message not valid in current state */
+  PQC_ERR_HS_BAD_MESSAGE = -61,   /**< malformed or wrong-length handshake
+                                     message */
+  PQC_ERR_HS_MODE_MISMATCH = -62, /**< peer offered a different KEM. Always
+                                     fatal: we never downgrade (archived
+                                     crypto rule 8) */
+  PQC_ERR_HS_TIMEOUT = -63,       /**< handshake did not complete in time */
+  PQC_ERR_HS_AUTH = -64, /**< peer failed authentication (PSK/signature) */
 
   /* Transport, udp.c / serial_radio.c (-70 .. -79) */
   PQC_ERR_IO = -70,            /**< socket or serial read/write failed */

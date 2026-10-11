@@ -101,7 +101,7 @@ reproducibility, and no bare algorithm benchmarks.
 
 | Area | Effect |
 |------|--------|
-| Custom handshake (`kem*`, `mlkem_shim`, `handshake`, `fragment`, `rekey`) | Not needed. Archive. |
+| Custom handshake (`kem*`, `mlkem_shim`, `handshake`, `fragment`, `rekey`) | Not needed. Archived 2026-10-10. |
 | Ascon, `kdf.c`, `session.c` nonces and replay window | Replaced by TLS. Crypto rules 1, 2, 4, 5 and 9 largely stop applying. |
 | Submodules (`ml-kem`, `ascon-c`) | Not needed. Replaced by a pinned OpenSSL 3.5+. |
 | `timer`, `logger`, `errors.h`, `rng` | Reusable for instrumentation. |
@@ -116,8 +116,8 @@ retained only as a possible research extension after L1-L10. See [scope.md](scop
 the final scope and [advisor_questions.md](advisor_questions.md) for each answer.
 
 - The custom stack (`kem*`, `mlkem_shim`, `handshake`, `fragment`, `rekey`, Ascon, the
-  `ml-kem` and `ascon-c` submodules) is not part of the mandatory system. Do not extend it.
+  `ml-kem` and `ascon-c` submodules) is not part of the mandatory system. It was archived
+  on 2026-10-10 (tag `custom-stack-v1`, branch `archive/custom-stack`) and removed from `main`.
 - CLAUDE.md, CONTRIBUTING.md and README were rewritten for the new scope on 2026-10-10.
-  The frozen custom stack stays in the tree; whether to archive it is still undecided.
 - Work now: the five review deliverables ([schedule.md](schedule.md)), then L1-L4 hardware
   bring-up, then OpenSSL 3.5 (L5).

@@ -56,5 +56,5 @@ P = primary, B = backup. Fill in the name from the table above.
 - If a project is more than two weeks behind, the Build Guide says to drop optional work
   (dashboard, FPGA, publication) at once and keep the physical interface, the secure
   gate and the mandatory negative tests.
-- The existing software (timer, logger, error codes, frozen custom stack) was written
-  before the scope change. Decide who owns it, and whether it is kept or archived.
+- The kept software (timer, logger, error codes, RNG helpers) was written before the scope
+  change. Decide who owns it. The custom stack is archived (tag `custom-stack-v1`).

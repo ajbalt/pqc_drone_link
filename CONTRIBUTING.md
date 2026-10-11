@@ -8,14 +8,15 @@ is, see [docs/design_notes.md](docs/design_notes.md).
 If a change would break one of these rules, stop and raise it with the team instead of
 working around it.
 
-## What is mandatory and what is frozen
+## What this repo is now
 
-Since 2026-10-10 the advisor's scope is the mandatory system: IMU, Pico, Pi, Wi-Fi,
-**OpenSSL TLS 1.3**, persistent queue, OLED
-([docs/scope.md](docs/scope.md)). The earlier custom stack (ML-KEM shim, Ascon, `kem.h`,
-custom handshake) is **frozen**: do not extend it, and do not add Ascon or a custom
-protocol to the mandatory system. It stays in the tree, building and tested, until the
-team decides whether to archive it. Rules that apply only to it are marked *(custom stack)*.
+The mandatory system is the advisor's scope of 2026-10-10: IMU, Pico, Pi, Wi-Fi,
+**OpenSSL TLS 1.3**, persistent queue and OLED ([docs/scope.md](docs/scope.md)). The earlier
+custom stack (ML-KEM shim, Ascon, `kem.h`, custom handshake) was **archived**: it is not in
+`main`, but is kept at tag `custom-stack-v1` and branch `archive/custom-stack`. Do not
+re-add it, and do not add Ascon or a custom protocol to the mandatory system. Bringing it
+back as a research extension needs a defined research question, an independent protocol
+spec and the advisor's approval.
 
 ## Gates and evidence
 
@@ -33,62 +34,51 @@ team decides whether to archive it. Rules that apply only to it are marked *(cus
 
 ## Language and compiler flags
 
-- Existing C code and any new C code on the Pi: **C17**, compiled with
+- **C17 for all project code** on the Pis, compiled with
   `-Wall -Wextra -Werror -Wmissing-prototypes`. Every non-`static` function must be
   declared in a header first; helpers that aren't in a header must be `static`.
 - **The Pi services (Pi A client and queue, Pi B server and store) are written in C17**
   (team decision, 2026-10-10). Confirm with the advisor (Q11).
 - **Open:** the Pico firmware language (C SDK or MicroPython). Do not start Pico firmware
   until it is decided and recorded here.
-- *(custom stack)* `src/crypto/mlkem_shim.cpp` is the only C++ file (C++20). It only
-  converts C pointers to the library's fixed-size spans and calls keygen, encapsulate and
-  decapsulate, with no protocol logic, logging, allocation or exceptions
-  (`-fno-exceptions -fno-rtti`). No other C++ files may be added.
 
 ## Dependencies
 
 - **OpenSSL 3.5 or newer** on every node that does cryptography, pinned to an exact
   version. Record `openssl version -a` in `evidence/bootstrap.log` and in every test
   log. Do not use a distribution default that lacks `X25519MLKEM768`.
-- Python and C dependencies are listed with exact versions in the README.
-- **Never modify files inside `third_party/`.**
-- *(custom stack)* The `ml-kem` and `ascon-c` submodules stay pinned. Do not update
-  them, `add_subdirectory()` ascon-c, or manage ml-kem's fetched dependencies. They are
-  not needed by the mandatory system.
+- There are no git submodules. If third-party code is ever added, put it under
+  `third_party/` pinned to an exact commit, never modify it, and note the version in
+  `docs/results.md`.
+- Dependency versions are listed in the README.
 
 ## Crypto rules (non-negotiable)
 
-Code comments refer to these by number ("crypto rule 7"), so keep the numbering. Rules 1
-to 9 are the original rules and stay as written for the frozen custom stack. Rules 10 to
-17 apply to the mandatory system.
+Code comments refer to these by number ("crypto rule 7"), so keep the numbering. Rules
+1–9 are the original rules; the ones marked *archived* belonged to the custom stack and
+are kept here only so old comments and history still make sense. Rules 10–17 apply to the
+mandatory system.
 
-### Original rules *(custom stack, rules 1-9)*
+### Original rules (1-9)
 
-1. **Never implement a cryptographic primitive.** ML-KEM and Ascon come from
-   `third_party/` only. Our code only wires them together.
-2. **All key exchanges go through `kem.h`.** Application and protocol code must never
-   call a library or the shim directly, or branch on which KEM is in use. Mode is
-   selected by config at runtime. `kem_mlkem.c` is the only file that includes
-   `mlkem_shim.h`, and `aead_ascon.c` / `kdf.c` are the only files that call ascon-c.
-3. **All randomness comes from `rng.c`**, which uses the OS CSPRNG (`getrandom()`).
-   ML-KEM seeds (`d`, `z`, `m`) are generated there and passed into the shim. Never use
-   `rand()` or any non-cryptographic source.
-4. **Never reuse a nonce with the same key.** Nonces are built in `session.c` only:
-   key epoch + direction bit (drone→ground / ground→drone) + 64-bit packet counter.
-   The counter never resets without a rekey. If the counter would overflow, force a
-   rekey.
-5. **Wipe secrets after use.** Call `secure_wipe()` on every secret key, seed, shared
-   secret, and session key on every exit path, including errors. Plain `memset` can be
-   optimized away.
+1. *(archived)* Never implement a cryptographic primitive. (Still true: we use OpenSSL.
+   See rule 10.)
+2. *(archived)* All key exchanges go through `kem.h`.
+3. **All randomness in our own code comes from `rng.c`**, which uses the OS CSPRNG
+   (`getrandom()`). Never use `rand()` or any non-cryptographic source. TLS keys and
+   nonces come from OpenSSL.
+4. *(archived)* Never reuse a nonce with the same key; nonces built in `session.c`.
+   (TLS 1.3 handles nonces now.)
+5. **Wipe secrets after use.** Call `secure_wipe()` on every secret buffer in our own code
+   on every exit path, including errors. Plain `memset` can be optimized away.
 6. **Constant-time comparisons only** for tags, MACs, and secrets (`ct_memcmp()`), never
    `memcmp`.
-7. **Check every return code** from crypto functions, including ML-KEM encapsulation,
-   which can fail on a malformed public key. A failed decrypt drops the packet and
-   increments a counter; it never falls back to plaintext or a weaker mode.
-8. **No downgrade.** A session configured for `mlkem768` must never negotiate anything
-   else.
-9. Session keys are derived in `kdf.c` only, with distinct domain-separation labels per
-   key and direction. Never use a KEM shared secret directly as an Ascon key.
+7. **Check every return code** from crypto functions, OpenSSL included. A failed
+   verification or decrypt drops the connection or packet and increments a counter; it
+   never falls back to plaintext or a weaker mode.
+8. *(archived)* No downgrade of the custom handshake mode. (Replaced by rule 12.)
+9. *(archived)* Session keys derived in `kdf.c` with domain-separation labels.
+   (TLS 1.3's key schedule does this now.)
 
 ### Rules for the mandatory system (TLS)
 
@@ -123,8 +113,6 @@ to 9 are the original rules and stay as written for the frozen custom stack. Rul
 - [docs/telemetry_format.md](docs/telemetry_format.md) is the source of truth for the
   UART frame, the record, the ACK, deduplication, the queue and the trust configuration.
   Update it **before** changing code that depends on it, in the same commit.
-- *(custom stack)* `docs/protocol_spec.md` is the source of truth for the custom
-  handshake. It does not exist yet and should not be written unless that work resumes.
 - Sequence numbers are 64-bit, per node, start at 1, and never reset or reuse a value.
 - Every value on a wire or in a file has a documented size, byte order and unit.
 - Link and queue sizes are config values, never hard-coded.
@@ -135,7 +123,6 @@ to 9 are the original rules and stay as written for the frozen custom stack. Rul
   size, in C and in Pico firmware.
 - Never log, print or write files **inside** a timed region. Record timestamps into
   memory, then write them after the timed region ends.
-- *(custom stack)* No `malloc`/`free` in the handshake or packet path.
 
 ## Measurement and logging
 
@@ -153,10 +140,10 @@ to 9 are the original rules and stay as written for the frozen custom stack. Rul
   (`tc netem` on the Pis or the access point) is recorded with each run (Q10).
 - Report medians and spread over many repetitions, never single runs, and never numbers
   from Debug builds.
-- *(custom stack)* `logger.c` writes CSV with columns
-  `run_id, mode, timestamp_ns, endpoint, event, bytes, detail`. The logger and timer may
-  be reused for the Pi-side instrumentation if the output matches the required evidence
-  CSV files (Q15).
+- `logger.c` writes CSV with columns
+  `run_id, mode, timestamp_ns, endpoint, event, bytes, detail` (`mode` holds the
+  configuration name). The logger and timer are kept for the Pi-side instrumentation; the
+  output must match the required evidence CSV files (Q15).
 
 ## Experiments and reproducibility
 
@@ -189,8 +176,6 @@ Conventions:
 - One file per module, `tests/test_<module>.c` for C code, registered in `CMakeLists.txt`
   with `add_executable` + `add_test`. Tests are plain programs with a `CHECK(cond)` macro
   that records a failure and keeps going, so one run reports every failure.
-- *(custom stack)* `test_kem_vectors.c` is reserved for the official KATs; tests that
-  cover every KEM loop over all mode numbers and skip modes not yet built.
 
 ## Research wiki
 
@@ -272,7 +257,7 @@ int rng_bytes(uint8_t *buf, size_t len);
 
 ### Before committing
 
-1. `clang-format -i` on changed C/C++ files; every file ends with a newline.
+1. `clang-format -i` on changed C files; every file ends with a newline.
 2. `cmake --build build` with no warnings, and `ctest --test-dir build` all passing.
 3. `cmake --build build --target docs` adds no new Doxygen warnings (if Doxygen is
    installed).

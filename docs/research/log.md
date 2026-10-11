@@ -11,7 +11,10 @@ described in [README.md](README.md#log-entry-format).
   `decisions/handshake-auth.md` (Decided: pinned classical certificate, no ML-DSA),
   `decisions/hybrid-mode.md` (Decided: hybrid is configuration B),
   `decisions/kdf-construction.md` (Superseded: TLS 1.3 key schedule), `open-questions.md`
-  (scope note, Q14 answered), `index.md`.
+  (scope note, Q14 answered), `index.md`, `ml-kem.md` (link fix).
+- **Archive**: the custom stack was removed from `main` (tag `custom-stack-v1`). Wiki
+  pages that mention `kem.h`, `kdf.c` or the shim describe archived code; `ml-kem.md` had its
+  broken link to `kem.h` replaced.
 - **Not yet in the wiki**: the Build Guide and the Research Guide. They should be ingested
   with `/ingest`.
 

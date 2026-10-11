@@ -12,19 +12,21 @@ looks the way it does.
 
 > **Scope changed (2026-10-10).** The advisor confirmed the Build Guide governs:
 > OpenSSL TLS 1.3 with `X25519MLKEM768`, compared with classical X25519 TLS. The custom
-> ML-KEM + Ascon steps below (4-6 and anything after) are **superseded** and stay on hold
-> as a possible later extension. Steps 0-3 stay in use for measurement. See
-> [scope.md](scope.md) and [guide_comparison.md](guide_comparison.md).
+> ML-KEM + Ascon work was **archived** the same day: it is preserved at tag
+> `custom-stack-v1` and branch `archive/custom-stack`, and removed from `main`. Steps 0-2
+> (errors, RNG helpers, timer and logger) remain in use. The sections below about `kem.h`
+> describe archived code and are kept for the record. See [scope.md](scope.md) and
+> [guide_comparison.md](guide_comparison.md).
 
 | Step | Module                         | Files                                   | Tested by           | State        |
 |------|--------------------------------|-----------------------------------------|---------------------|--------------|
 | 0    | Error codes                    | `src/common/errors.h`                   | (used by all tests) | Done         |
-| 3    | Key exchange interface         | `src/crypto/kem.h`, `kem.c`, `kem_none.c` | `tests/test_kem.c`  | Done         |
+| 3    | Key exchange interface         | `src/crypto/kem.h`, `kem.c`, `kem_none.c` | `tests/test_kem.c`  | Archived     |
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
 | 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done        |
-| 4    | Packet formats                 | `docs/protocol_spec.md`, `src/protocol/messages.h` | —         | Superseded   |
-| 5    | UDP transport                  | `src/transport/udp.c`                   | —                   | Superseded   |
-| 6    | Baseline apps                  | `src/app/drone.c`, `ground_station.c`, `telemetry_gen.c` | — | Superseded   |
+| 4    | Packet formats                 | `docs/protocol_spec.md`, `src/protocol/messages.h` | —         | Archived     |
+| 5    | UDP transport                  | `src/transport/udp.c`                   | —                   | Archived     |
+| 6    | Baseline apps                  | `src/app/drone.c`, `ground_station.c`, `telemetry_gen.c` | — | Archived     |
 
 Steps were done out of numeric order on purpose: `kem.h` came first because
 its shape decides how cleanly ML-KEM and X25519 drop in during week 2.
@@ -100,7 +102,10 @@ a test that uses every value does.
 
 ---
 
-## kem.h: the common key exchange interface
+## kem.h: the common key exchange interface (archived)
+
+> Archived with the custom stack (tag `custom-stack-v1`). The files no longer exist in
+> `main`. This section is kept to explain the earlier design.
 
 **What it is.** The single interface every key exchange mode implements.
 Protocol and app code pick a mode once, from config, and then only call
@@ -285,15 +290,15 @@ it isn't listed in `CMakeLists.txt`.
 These were promised by code written so far; whoever writes the module must
 implement them.
 
-- [ ] `kdf.c` rejects a zero-length shared secret (keeps `none` from
+- [ ] *(archived)* `kdf.c` rejects a zero-length shared secret (keeps `none` from
       producing a key).
-- [ ] `handshake.c` rejects any mode other than the configured one with
+- [ ] *(archived)* `handshake.c` rejects any mode other than the configured one with
       `PQC_ERR_HS_MODE_MISMATCH` (no downgrade).
-- [ ] Callers of `kem_keygen` / `kem_encaps` / `kem_decaps` call
+- [ ] *(archived)* Callers of `kem_keygen` / `kem_encaps` / `kem_decaps` call
       `secure_wipe()` on `sk` and `ss` on every exit path.
-- [ ] Each KEM implementation wipes its own partial outputs if it fails.
+- [ ] *(archived)* Each KEM implementation wipes its own partial outputs if it fails.
 - [ ] `scripts/power_logger.py` timestamps with `time.monotonic_ns()`.
-- [ ] Apps call `logger_flush()` only outside timed regions.
+- [ ] Pi services call `logger_flush()` only outside timed regions.
 - [ ] Apps size the log buffer for a whole run (telemetry rate × run
       length × events per packet), and `analysis/parse_logs.py` flags any
       run that contains a `log_dropped` row.
@@ -324,3 +329,4 @@ key epoch, and possibly the mode.
 | 2026-10-10 | Read the Build Guide (LINK) and Research Guide p.8; found a conflict between them. Sent questions to the advisor. Added `docs/advisor_questions.md` and `docs/guide_comparison.md`; paused protocol work pending answers |
 | 2026-10-10 | Advisor replied: Build Guide governs, TLS replaces the custom stack, Ascon is an optional later extension. Added `docs/scope.md`; recorded answers in `docs/advisor_questions.md` |
 | 2026-10-10 | Rewrote README, CONTRIBUTING and CLAUDE.md for the Build Guide scope (rules 1-9 kept for the frozen stack, new TLS rules 10-17). Drafted the five review deliverables: `block_diagram.md`, `telemetry_format.md`, `responsibility_matrix.md`, `schedule.md`, `bom.md`. Closed four wiki decision pages. No code changed |
+| 2026-10-10 | Archived the custom stack: tag `custom-stack-v1` and branch `archive/custom-stack`; removed `kem*`, the ML-KEM shim, the empty protocol, transport and app stubs, `test_kem` and the two submodules from `main`. `CMakeLists.txt` now builds C17 only (rng, timer, logger). `errors.h`, `rng`, `timer` and `logger` kept. Pi services will be C17. `ctest` 2/2 passing |

@@ -66,7 +66,7 @@ struct log_record {
 struct logger {
   FILE *fp;                    /**< open CSV file, NULL when closed */
   char run_id[LOG_RUN_ID_MAX]; /**< copied from config */
-  char mode[LOG_MODE_MAX];     /**< copied from the kem_ops name */
+  char mode[LOG_MODE_MAX];     /**< configuration name, e.g. "tls_x25519" */
   enum log_endpoint endpoint;  /**< which side this is */
   struct log_record *records;  /**< caller-provided storage */
   size_t capacity;             /**< number of entries in records */
@@ -82,7 +82,8 @@ struct logger {
  * @param[in]  capacity  Number of entries in @p storage (at least 1).
  * @param[in]  path      File to create. Must not already exist.
  * @param[in]  run_id    Run identifier from the experiment config.
- * @param[in]  mode      Mode name, e.g. kem->name.
+ * @param[in]  mode      Configuration name, e.g. "tls_x25519" or
+ * "tls_x25519mlkem768".
  * @param[in]  endpoint  Which side of the link this is.
  * @return PQC_OK on success, PQC_ERR_INVALID_ARG if a pointer is NULL,
  *         @p capacity is 0 or @p endpoint is unknown, PQC_ERR_BAD_CONFIG if

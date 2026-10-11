@@ -7,7 +7,7 @@ handshake.
 
 **Sources**: [fips-203](sources.md#fips-203), [sp-800-227](sources.md#sp-800-227)
 
-**Last updated**: 2026-10-08
+**Last updated**: 2026-10-10
 
 ---
 
@@ -74,7 +74,7 @@ How many radio packets that becomes is the question in
 [Radio link](decisions/radio-link.md).
 
 **Our code.** The `KEM_MAX_PK_BYTES` / `KEM_MAX_SK_BYTES` / `KEM_MAX_CT_BYTES` /
-`KEM_MAX_SS_BYTES` constants in [kem.h](../../src/crypto/kem.h) are 1568 / 3168 /
+`KEM_MAX_SS_BYTES` constants in `kem.h` (archived at tag `custom-stack-v1`) are 1568 / 3168 /
 1568 / 32, which matches the ML-KEM-1024 row: the largest supported set, as
 CONTRIBUTING.md requires.
 

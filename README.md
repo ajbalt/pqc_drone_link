@@ -46,12 +46,12 @@ and every report says so. This is an educational Wi-Fi link, not flight-approved
 
 ## Status of the code in this repo
 
-`src/` holds the earlier custom stack (error codes, `kem.h`, RNG helpers, timer, CSV
-logger) built before the scope changed. It is **frozen**: it still builds and its tests
-pass, and the timer and logger may be reused for measurement, but the custom handshake,
-Ascon and ML-KEM shim are not part of the mandatory system. The Pico firmware, the Pi
-services, the hardware files and the evidence folder do not exist yet; they are created
-as gates L1–L10 are reached. Whether to archive the frozen code is still to be decided.
+`src/` holds only the helpers kept from the earlier work: error codes, RNG and secret-wiping
+helpers, a monotonic timer and a CSV event logger, with tests. The earlier custom ML-KEM +
+Ascon stack was **archived**: it is no longer in `main`, but is preserved at tag
+`custom-stack-v1` and branch `archive/custom-stack` (restore with
+`git checkout custom-stack-v1`). The Pico firmware, the Pi services (C17), the hardware
+files and the evidence folder do not exist yet; they are created as gates L1–L10 are reached.
 
 ## Gates L1–L10
 
@@ -78,28 +78,25 @@ Schedule and owners: [docs/schedule.md](docs/schedule.md),
 
 ## Getting the code
 
-The earlier crypto libraries are git submodules, so clone with `--recurse-submodules`:
-
 ```sh
-git clone --recurse-submodules https://github.com/ajbalt/pqc_drone_link.git
-# or, in an existing clone:
-git submodule update --init --recursive
+git clone https://github.com/ajbalt/pqc_drone_link.git
 ```
+
+There are no submodules any more. If you have an older clone, run
+`git submodule deinit -f --all` before pulling, then delete `third_party/`.
 
 ## Building and testing the existing code
 
-Requires CMake 3.28+, a C17 compiler, and a C++20 compiler.
+Requires CMake 3.28+ and a C17 compiler. No internet is needed to configure.
 
 ```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release   # first configure needs internet (ml-kem deps)
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
 - Rerun the `cmake -B build ...` configure step only after editing `CMakeLists.txt` or
   changing a cache option.
-- To rebuild offline after the first configure, add `-DFETCHCONTENT_FULLY_DISCONNECTED=ON`.
-  Deleting `build/` requires internet again.
 - Benchmarks and experiments must use `Release` builds. Debug numbers are never reported.
 
 ### Requirements for the mandatory system
@@ -130,37 +127,21 @@ Files marked *(planned)* do not exist yet.
 pqc_drone_link/
 ├── README.md                  # This file: what the project is, how to build
 ├── CONTRIBUTING.md            # Rules every change must follow
-├── CMakeLists.txt             # Build system for the existing C code
-├── third_party/               # Frozen: ml-kem and ascon-c submodules (not in the mandatory system)
-├── src/                       # Frozen custom stack; timer and logger reusable
+├── CMakeLists.txt             # Build system (C17 only)
+├── src/                       # Code kept from the earlier work
 │   ├── common/
 │   │   └── errors.h           # Negative error codes returned by all functions
 │   ├── crypto/
-│   │   ├── mlkem_shim.h       # Plain C interface to ML-KEM
-│   │   ├── mlkem_shim.cpp     # The only C++ file (C++20)
 │   │   ├── rng.h              # rng_bytes(), secure_wipe(), ct_memcmp()
-│   │   ├── rng.c              # OS CSPRNG (getrandom())
-│   │   ├── kem.h              # Common interface every key exchange implements
-│   │   ├── kem.c              # Mode lookup + length checks for every KEM
-│   │   ├── kem_mlkem.c        # (planned, on hold) ML-KEM-512/768/1024
-│   │   ├── kem_x25519.c       # (planned, on hold) Classical baseline
-│   │   ├── kem_none.c         # Unsecured baseline
-│   │   ├── kdf.c              # (planned, on hold) Shared secret -> session key
-│   │   └── aead_ascon.c       # (planned, on hold) Encrypt/decrypt packets
-│   ├── protocol/              # (on hold) custom handshake, fragmentation, session, rekey
-│   ├── transport/
-│   │   ├── udp.c              # Development transport
-│   │   └── serial_radio.c     # (on hold)
-│   ├── metrics/
-│   │   ├── timer.h / timer.c  # Monotonic wall time and process CPU time
-│   │   └── logger.h / logger.c # Buffers events in memory, writes CSV logs
-│   └── app/                   # Baseline apps from the earlier plan (on hold)
+│   │   └── rng.c              # OS CSPRNG (getrandom())
+│   └── metrics/
+│       ├── timer.h / timer.c  # Monotonic wall time and process CPU time
+│       └── logger.h / logger.c # Buffers events in memory, writes CSV logs
 ├── pico/                      # (planned) Pico A IMU + UART sender, Pico B OLED + UART receiver
 ├── pi/                        # (planned) Pi A client + queue, Pi B server + dedup store
 ├── hardware/                  # (planned) board_schematic.pdf, pin_map.csv, pcb/, actual_photo.jpg
 ├── evidence/                  # (planned) per-gate logs, captures, bench photos, final video
 ├── tests/
-│   ├── test_kem.c             # kem.h interface: lookup, length checks, every mode
 │   ├── test_rng.c             # rng_bytes(), secure_wipe(), ct_memcmp()
 │   ├── test_metrics.c         # timer.c and logger.c
 │   ├── positive_and_attack_tests.csv  # (planned) T01-T10 results
@@ -227,8 +208,7 @@ Still open:
 - [ ] TLS cipher suite shared by configurations A and B
 - [ ] Confirm: no rekey, no command channel, one-way server authentication (advisor Q6, Q8)
 - [ ] Reuse the existing timer and logger for evidence CSVs? (advisor Q15)
-- [ ] Archive or keep the frozen custom stack (team decision, pending)
 
 Smaller questions from the earlier research (Q1–Q18) are in
 [docs/research/open-questions.md](docs/research/open-questions.md). Many were about the
-custom stack and are now moot; they are kept for the later research extension.
+archived custom stack and are now moot; they are kept for the later research extension.
