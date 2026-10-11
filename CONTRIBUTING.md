@@ -36,8 +36,9 @@ team decides whether to archive it. Rules that apply only to it are marked *(cus
 - Existing C code and any new C code on the Pi: **C17**, compiled with
   `-Wall -Wextra -Werror -Wmissing-prototypes`. Every non-`static` function must be
   declared in a header first; helpers that aren't in a header must be `static`.
-- **Open:** the language for the Pi services (C or Python) and for the Pico firmware (C SDK or
-  MicroPython) is undecided (advisor question Q11). Do not start a service in a language
+- **The Pi services (Pi A client and queue, Pi B server and store) are written in C17**
+  (team decision, 2026-10-10). Confirm with the advisor (Q11).
+- **Open:** the Pico firmware language (C SDK or MicroPython). Do not start Pico firmware
   until it is decided and recorded here.
 - *(custom stack)* `src/crypto/mlkem_shim.cpp` is the only C++ file (C++20). It only
   converts C pointers to the library's fixed-size spans and calls keygen, encapsulate and

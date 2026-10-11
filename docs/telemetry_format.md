@@ -179,7 +179,8 @@ says so.
 
 ## 11. Open points
 
-- Persistent store choice, and the language for each service (advisor Q11).
+- Persistent store choice. The Pi services are written in C (team decision, 2026-10-10;
+  the advisor has not objected). Pico firmware language is still open.
 - Final queue size, overflow policy, in-flight window and timeouts above.
 - The shared cipher suite for A and B.
 - Whether Pi B authenticates Pi A (mutual TLS). The Build Guide asks for server

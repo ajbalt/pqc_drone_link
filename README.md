@@ -216,8 +216,8 @@ Decided by the advisor on 2026-10-10 ([docs/advisor_questions.md](docs/advisor_q
 
 Still open:
 
-- [ ] Pi service language (C or Python), and Pico firmware language (C SDK or MicroPython)
-      (advisor Q11)
+- [ ] Pico firmware language (C SDK or MicroPython). The Pi services are decided: C17
+      (team decision 2026-10-10, still to be confirmed with the advisor, Q11)
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?
       (advisor Q5)
 - [ ] Loss emulation: `tc netem` on the Pis or at the access point (advisor Q10)
