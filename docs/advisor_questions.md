@@ -53,7 +53,7 @@ meetings):
 
 - **Q5** Which instrument for current and power, and is per-handshake energy needed?
 - **Q10** How is loss emulated (`tc netem` on the Pis or at the AP)?
-- **Q11** May the Pi services be Python, or must they be C?
+- **Q11** The team decided to write the Pi services in C. Confirm this is acceptable (Python was the alternative).
 - **Q6** Confirm there is no rekey requirement.
 - **Q8** Confirm there is no command channel.
 - **Q13** and **Q15** Confirm the Pi 4B platform and that we may reuse the timer/logger.
