@@ -38,6 +38,7 @@ recorded. Distribution builds may carry patches, so the group check above is the
 
 ## The Pi 4 has no real-time clock
 
+- The Pi 4 datasheet lists no real-time clock ([raspberry-pi-4](raspberry-pi-4.md)); silence is not proof.
 - The Raspberry Pi documentation says only that the **Raspberry Pi 5** includes an RTC
   ([rpi-docs-rtc](sources.md#rpi-docs-rtc)); it names no other model. Users report that a Pi 4 shows
   "RTC time: n/a" and boots with a stale time unless a service restores it

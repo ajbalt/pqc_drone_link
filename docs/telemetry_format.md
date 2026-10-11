@@ -47,8 +47,9 @@ Sample payload (`len` = 16):
 | 2 | `gz` | as above |
 
 The sensor range settings are fixed in the firmware and written in the evidence log. The
-16384 and 131 figures are the MPU-6050 datasheet values for those ranges; confirm them
-against the datasheet on file before reporting physical units.
+16384 and 131 figures are the MPU-6050 datasheet values for those ranges
+([MPU-6050](research/mpu-6050.md), datasheet Revision 3.4). Absolute accuracy is limited (about ±3% sensitivity
+tolerance), which is fine because the demo shows relative motion.
 
 The receiver drops a frame with a bad CRC, a bad length or a wrong payload size, counts it
 (`uart_bad_frames`), and re-syncs. It never crashes or blocks on a malformed frame.
@@ -180,7 +181,8 @@ of 10 minutes each, repeated 10 times. Confirm counts with the advisor.
   time come from the live record flow and are stored in other files.
 
 Handshake numbers never come from a run that was also carrying telemetry unless the report
-says so.
+says so. Each benchmark run also records the Pi's CPU temperature and clock frequency, because the Pi 4
+throttles to stay under 85 °C ([Raspberry Pi 4](research/raspberry-pi-4.md)) *(proposed)*.
 
 ## 11. Open points
 

@@ -103,6 +103,16 @@ Entry format:
 - **File**: `raw/MAVLink2.md` (on the source drive)
 - **Ingested**: 2026-10-08, none (markdown, read directly)
 
+### mpu-6050-datasheet
+
+- **Title**: MPU-6000 and MPU-6050 Product Specification
+- **Authors / org**: InvenSense (TDK)
+- **Year**: 2013 (Revision 3.4, 19 Aug 2013)
+- **URL / DOI**: https://invensense.tdk.com/products/motion-tracking/6-axis/mpu-6050/
+- **Licence**: Copyrighted: paraphrase only
+- **File**: `raw/ps-mpu-6000a-00-mpu-6000-and-mpu-6050-datasheet.pdf` (on the source drive)
+- **Ingested**: 2026-10-11, docling
+
 ### openssl-3-5-9
 
 - **Title**: OpenSSL 3.5.9 source tree: manual pages (`doc/`), `CHANGES.md`, `NEWS.md`, `INSTALL.md`, demos and code, read at tag `openssl-3.5.9` (commit `45e844fa2a14ec92d146bd8f5778ac130b6625fb`, 29 Sep 2026)
@@ -112,6 +122,16 @@ Entry format:
 - **Licence**: Apache-2.0 (`LICENSE.txt`); paraphrase and cite file paths
 - **File**: none; shallow clone of the tag, read in a scratch folder. The tag signature was **not** verified
 - **Ingested**: 2026-10-10, read directly (no extraction needed)
+
+### pi-4-datasheet
+
+- **Title**: Raspberry Pi 4 Model B Datasheet (RP-008341-DS-1), Release 1.1
+- **Authors / org**: Raspberry Pi Ltd
+- **Year**: 2024 (March)
+- **URL / DOI**: https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-datasheet.pdf
+- **Licence**: Copyrighted: paraphrase only
+- **File**: `raw/RP-008341-DS-1-raspberry-pi-4-datasheet.pdf` (on the source drive)
+- **Ingested**: 2026-10-11, docling
 
 ### rfc-6298
 

@@ -67,6 +67,9 @@ supply rails.
 
 ## Open items before this is final
 
+- The MPU-6050 chip accepts only 2.375 to 3.46 V on its supply ([MPU-6050](research/mpu-6050.md)). Do not
+  connect a bare chip to 5 V. Confirm what regulator and pull-ups the actual breakout has before wiring it to
+  the Pico's 3.3 V pin.
 - Confirm whether each Pico is powered from its Pi's USB (Build Guide gate L1) or from a
   separate supply (the Build Guide's parts list has four supplies for four devices).
 - Replace this page's diagram with the KiCad schematic and `hardware/pin_map.csv`.
