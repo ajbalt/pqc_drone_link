@@ -1,0 +1,15 @@
+id,node,from_device,from_pin,from_signal,to_device,to_pin,to_signal,level_v,notes,verified_on_bench
+1,A,Pi A,8 (GPIO14),TXD0 (UART0 TX),Pico A,2 (GP1),UART0 RX,3.3,Pi to Pico,no
+2,A,Pico A,1 (GP0),UART0 TX,Pi A,10 (GPIO15),RXD0 (UART0 RX),3.3,Pico to Pi,no
+3,A,Pi A,6,GND,Pico A,3,GND,0,Common ground; each node keeps its own power supply,no
+4,A,Pico A,6 (GP4),I2C0 SDA,IMU,SDA,SDA,3.3,Needs pull-ups; check the breakout,no
+5,A,Pico A,7 (GP5),I2C0 SCL,IMU,SCL,SCL,3.3,Needs pull-ups; check the breakout,no
+6,A,Pico A,36,3V3(OUT),IMU,VCC,VCC,3.3,Only if the breakout is 3.3 V capable; chip VDD range 2.375 to 3.46 V,no
+7,A,Pico A,38,GND,IMU,GND,GND,0,,no
+8,B,Pi B,8 (GPIO14),TXD0 (UART0 TX),Pico B,2 (GP1),UART0 RX,3.3,Pi to Pico,no
+9,B,Pico B,1 (GP0),UART0 TX,Pi B,10 (GPIO15),RXD0 (UART0 RX),3.3,Pico to Pi,no
+10,B,Pi B,6,GND,Pico B,3,GND,0,Common ground; each node keeps its own power supply,no
+11,B,Pico B,6 (GP4),I2C0 SDA,OLED,SDA,SDA,3.3,Needs pull-ups; check the module,no
+12,B,Pico B,7 (GP5),I2C0 SCL,OLED,SCL,SCL,3.3,Needs pull-ups; check the module,no
+13,B,Pico B,36,3V3(OUT),OLED,VCC,VCC,3.3,Only if the module accepts 3.3 V; verify current and pull-ups,no
+14,B,Pico B,38,GND,OLED,GND,GND,0,,no

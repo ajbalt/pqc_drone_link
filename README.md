@@ -50,8 +50,9 @@ and every report says so. This is an educational Wi-Fi link, not flight-approved
 helpers, a monotonic timer and a CSV event logger, with tests. The earlier custom ML-KEM +
 Ascon stack was **archived**: it is no longer in `main`, but is preserved at tag
 `custom-stack-v1` and branch `archive/custom-stack` (restore with
-`git checkout custom-stack-v1`). The Pico firmware, the Pi services (C17), the hardware
-files and the evidence folder do not exist yet; they are created as gates L1–L10 are reached.
+`git checkout custom-stack-v1`). The Pico firmware, the Pi services (C17) and the
+hardware files do not exist yet; they are created as gates L1–L10 are reached. The `evidence/` folder exists with
+its rules and a gate-record template.
 
 ## Gates L1–L10
 
@@ -123,17 +124,22 @@ pqc_drone_link/
 │   └── metrics/
 │       ├── timer.h / timer.c  # Monotonic wall time and process CPU time
 │       └── logger.h / logger.c # Buffers events in memory, writes CSV logs
-├── pico/                      # (planned) Pico A IMU + UART sender, Pico B OLED + UART receiver
-├── pi/                        # (planned) Pi A client + queue, Pi B server + dedup store
-├── hardware/                  # (planned) board_schematic.pdf, pin_map.csv, pcb/, actual_photo.jpg
-├── evidence/                  # (planned) per-gate logs, captures, bench photos, final video
+├── pico/                      # Pico firmware (not started); README lists the jobs and prerequisites
+├── pi/                        # Pi services in C17 (not started); README lists the programs and prerequisites
+├── hardware/                  # Wiring and boards
+│   ├── README.md              # Rules and file states
+│   └── pin_map.csv            # Draft pin map by physical header pin (not yet verified on the bench)
+│                              # (planned) board_schematic.pdf, pcb/, actual_photo.jpg
+├── evidence/                  # Per-gate records and captures; see evidence/README.md
+│   ├── README.md              # Rules, naming and what each gate needs
+│   └── GATE_RECORD_TEMPLATE.md # Copy for each gate: setup, expected vs observed, sign-off
 ├── tests/
 │   ├── test_rng.c             # rng_bytes(), secure_wipe(), ct_memcmp()
 │   ├── test_metrics.c         # timer.c and logger.c
-│   ├── positive_and_attack_tests.csv  # (planned) T01-T10 results
-│   └── fault_injection.csv    # (planned) outage, restart and loss results
+│   ├── positive_and_attack_tests.csv  # T01-T10 results (header only so far)
+│   └── fault_injection.csv    # Outage, restart and loss results (header only so far)
 ├── experiments/
-│   └── configs/               # (planned) one file per experiment (config A/B, loss, duration)
+│   └── configs/               # One file per experiment; README lists the fields (no runner yet)
 ├── scripts/
 │   ├── run_demo.sh            # (planned) assemble-and-run for another student
 │   ├── make_demo_certs.sh     # Demo CA and server certificate (backdated 1 day, 30 days)

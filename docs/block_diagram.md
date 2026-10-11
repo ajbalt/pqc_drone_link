@@ -70,6 +70,12 @@ supply rails.
 - The MPU-6050 chip accepts only 2.375 to 3.46 V on its supply ([MPU-6050](research/mpu-6050.md)). Do not
   connect a bare chip to 5 V. Confirm what regulator and pull-ups the actual breakout has before wiring it to
   the Pico's 3.3 V pin.
+- The OLED's I2C address is `0x3C` (SA0 low) or `0x3D` (SA0 high), and its charge pump makes the panel supply
+  ([SSD1306](research/ssd1306.md)). Record the module's address and check its supply range.
+- The RP2350's internal pull-ups (32 to 86 kohm) may be too weak for I2C; its datasheet says to fit external
+  pull-ups ([RP2350](research/rp2350.md)). Check whether the IMU and OLED breakouts already have them.
+- Pins and functions in the table above are confirmed against the official pinout
+  ([Pico 2 pinout](research/pico-2-pinout.md)).
 - Confirm whether each Pico is powered from its Pi's USB (Build Guide gate L1) or from a
   separate supply (the Build Guide's parts list has four supplies for four devices).
 - Replace this page's diagram with the KiCad schematic and `hardware/pin_map.csv`.
