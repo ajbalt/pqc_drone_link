@@ -5,13 +5,15 @@ one handshake, and if so, how to combine their shared secrets safely.
 
 **Sources**: [fips-203](../sources.md#fips-203), [sp-800-227](../sources.md#sp-800-227), [sp-800-56c](../sources.md#sp-800-56c), [sp-800-133r3-ipd](../sources.md#sp-800-133r3-ipd)
 
-**Last updated**: 2026-10-08
+**Last updated**: 2026-10-10
 
-**Status**: Open
+**Status**: Decided 2026-10-10
 
-**Decision**: —
+**Decision**: Hybrid `X25519MLKEM768` over TLS 1.3 is the mandatory configuration B, compared with classical X25519 (configuration A). Key combining is done by OpenSSL, not by us ([scope](../../scope.md)).
 
 ---
+
+> **Outcome (2026-10-10).** The custom hybrid combiner options below are no longer needed for the mandatory system. They stay as background.
 
 ## Why it matters
 

@@ -10,11 +10,11 @@ looks the way it does.
 
 ## Status
 
-> **On hold (2026-10-10).** Step 4 and everything after it wait for the advisor's answers
-> to [advisor_questions.md](advisor_questions.md). The Build Guide describes an
-> OpenSSL TLS 1.3 hybrid design that conflicts with the custom ML-KEM + Ascon design
-> (see [guide_comparison.md](guide_comparison.md)). Steps 0-3 stay valid either way
-> (the logger and timer are reusable). Do not write handshake or packet code yet.
+> **Scope changed (2026-10-10).** The advisor confirmed the Build Guide governs:
+> OpenSSL TLS 1.3 with `X25519MLKEM768`, compared with classical X25519 TLS. The custom
+> ML-KEM + Ascon steps below (4-6 and anything after) are **superseded** and stay on hold
+> as a possible later extension. Steps 0-3 stay in use for measurement. See
+> [scope.md](scope.md) and [guide_comparison.md](guide_comparison.md).
 
 | Step | Module                         | Files                                   | Tested by           | State        |
 |------|--------------------------------|-----------------------------------------|---------------------|--------------|
@@ -22,9 +22,9 @@ looks the way it does.
 | 3    | Key exchange interface         | `src/crypto/kem.h`, `kem.c`, `kem_none.c` | `tests/test_kem.c`  | Done         |
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
 | 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done        |
-| 4    | Packet formats                 | `docs/protocol_spec.md`, `src/protocol/messages.h` | —         | On hold      |
-| 5    | UDP transport                  | `src/transport/udp.c`                   | —                   | On hold      |
-| 6    | Baseline apps                  | `src/app/drone.c`, `ground_station.c`, `telemetry_gen.c` | — | On hold      |
+| 4    | Packet formats                 | `docs/protocol_spec.md`, `src/protocol/messages.h` | —         | Superseded   |
+| 5    | UDP transport                  | `src/transport/udp.c`                   | —                   | Superseded   |
+| 6    | Baseline apps                  | `src/app/drone.c`, `ground_station.c`, `telemetry_gen.c` | — | Superseded   |
 
 Steps were done out of numeric order on purpose: `kem.h` came first because
 its shape decides how cleanly ML-KEM and X25519 drop in during week 2.
@@ -322,3 +322,5 @@ key epoch, and possibly the mode.
 | 2026-10-08 | `timer.c` and `logger.c` + `test_metrics`; added `-Wmissing-prototypes`; started this file. `ctest`: 3/3 passing |
 | 2026-10-08 | Team docs: `README.md` + `CONTRIBUTING.md`. Research wiki in `docs/research/` (adapted from the maintainer's LLM wiki) with `scripts/wiki_lint.py`; first decision page: radio link |
 | 2026-10-10 | Read the Build Guide (LINK) and Research Guide p.8; found a conflict between them. Sent questions to the advisor. Added `docs/advisor_questions.md` and `docs/guide_comparison.md`; paused protocol work pending answers |
+| 2026-10-10 | Advisor replied: Build Guide governs, TLS replaces the custom stack, Ascon is an optional later extension. Added `docs/scope.md`; recorded answers in `docs/advisor_questions.md` |
+| 2026-10-10 | Rewrote README, CONTRIBUTING and CLAUDE.md for the Build Guide scope (rules 1-9 kept for the frozen stack, new TLS rules 10-17). Drafted the five review deliverables: `block_diagram.md`, `telemetry_format.md`, `responsibility_matrix.md`, `schedule.md`, `bom.md`. Closed four wiki decision pages. No code changed |

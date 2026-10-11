@@ -6,13 +6,15 @@ default), ML-DSA signatures, or authentication through static KEM keys.
 
 **Sources**: [sp-800-227](../sources.md#sp-800-227), [sp-800-56c](../sources.md#sp-800-56c), [fips-204](../sources.md#fips-204), [sp-800-133r3-ipd](../sources.md#sp-800-133r3-ipd), [expressvpn-pq-wireguard-guide](../sources.md#expressvpn-pq-wireguard-guide)
 
-**Last updated**: 2026-10-08
+**Last updated**: 2026-10-10
 
-**Status**: Open
+**Status**: Decided 2026-10-10
 
-**Decision**: —
+**Decision**: TLS 1.3 with a pinned demo CA certificate and hostname verification; one-way (server) authentication; ML-DSA is not in scope ([scope](../../scope.md)). The certificate is classical, so the system has no PQ authentication, and reports must say so.
 
 ---
+
+> **Outcome (2026-10-10).** The custom handshake this page argued about is frozen. The options below stay as background for any later research extension.
 
 ## Why it matters
 

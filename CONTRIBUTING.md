@@ -1,52 +1,67 @@
 # Contributing
 
 The rules every change to this repo must follow. Read this fully before writing code.
-For what the project is and how to build it, see [README.md](README.md). For *why* the
-existing code is designed the way it is, see [docs/design_notes.md](docs/design_notes.md).
+For what the project is and how to build it, see [README.md](README.md). The final scope
+is in [docs/scope.md](docs/scope.md). For *why* the existing code is designed the way it
+is, see [docs/design_notes.md](docs/design_notes.md).
 
 If a change would break one of these rules, stop and raise it with the team instead of
 working around it.
 
+## What is mandatory and what is frozen
+
+Since 2026-10-10 the advisor's scope is the mandatory system: IMU, Pico, Pi, Wi-Fi,
+**OpenSSL TLS 1.3**, persistent queue, OLED
+([docs/scope.md](docs/scope.md)). The earlier custom stack (ML-KEM shim, Ascon, `kem.h`,
+custom handshake) is **frozen**: do not extend it, and do not add Ascon or a custom
+protocol to the mandatory system. It stays in the tree, building and tested, until the
+team decides whether to archive it. Rules that apply only to it are marked *(custom stack)*.
+
+## Gates and evidence
+
+- Work follows the Build Guide gates **L1–L10 in order**. If an expected physical result
+  is missing, do not advance. Change one variable at a time and keep the failed output.
+- Each gate needs three files in `evidence/`: a dated log showing PASS or FAIL, the exact
+  code revision and board IDs, and a photo, logic trace or recording. The instructor
+  initials it before the gate counts as DONE.
+- **Never invent, estimate or hand-edit measurements.** Every number in a report comes
+  from a raw CSV or capture in `evidence/` that someone else can re-run.
+- No purchasing, PCB or connector orders, and no optional work (Ascon, custom protocol,
+  FPGA, dashboards), without advisor approval.
+- Electrical safety: pins are 3.3 V only, no load powered from a GPIO or Pi header, wire
+  with power off, and record header photos before powering up. See the Build Guide.
+
 ## Language and compiler flags
 
-- **C17 for all project code.**
-- **One exception:** `src/crypto/mlkem_shim.cpp` is C++20, because the ML-KEM library is
-  a C++20 header-only library. It exists only to expose ML-KEM through a plain C header
-  (`mlkem_shim.h`). No other C++ files may be added.
-- The shim only converts C pointers to the library's fixed-size spans and calls
-  keygen/encapsulate/decapsulate. No protocol logic, no logging, no allocation, no
-  exceptions. It is compiled with `-fno-exceptions -fno-rtti`.
-- Project C code is compiled with `-Wall -Wextra -Werror -Wmissing-prototypes`.
-  Every non-`static` function must be declared in a header first; helpers that aren't
-  in a header must be `static`. This turns a header/`.c` name mismatch into a compile
-  error on the exact line instead of a linker "undefined reference".
+- Existing C code and any new C code on the Pi: **C17**, compiled with
+  `-Wall -Wextra -Werror -Wmissing-prototypes`. Every non-`static` function must be
+  declared in a header first; helpers that aren't in a header must be `static`.
+- **Open:** the language for the Pi services (C or Python) and for the Pico firmware (C SDK or
+  MicroPython) is undecided (advisor question Q11). Do not start a service in a language
+  until it is decided and recorded here.
+- *(custom stack)* `src/crypto/mlkem_shim.cpp` is the only C++ file (C++20). It only
+  converts C pointers to the library's fixed-size spans and calls keygen, encapsulate and
+  decapsulate, with no protocol logic, logging, allocation or exceptions
+  (`-fno-exceptions -fno-rtti`). No other C++ files may be added.
 
 ## Dependencies
 
-All crypto libraries are **git submodules** under `third_party/`, pinned to exact
-commits.
-
-| Submodule             | Repo                                 | How it's built |
-|-----------------------|--------------------------------------|----------------|
-| `third_party/ml-kem`  | https://github.com/itzmeanjan/ml-kem | `add_subdirectory()`; linked via the `ml-kem` target |
-| `third_party/ascon-c` | https://github.com/ascon/ascon-c     | Its CMakeLists is **not** used (it is a test harness). We compile one implementation folder ourselves into the `ascon` target |
-
-- **Never modify files inside `third_party/`.** Wrap libraries in `src/crypto/` instead.
-- **Do not manage ml-kem's dependencies.** ml-kem's own CMakeLists fetches `sha3`,
-  `randomshake`, and `subtle` at configure time. Do not vendor, replace, or re-pin them.
-- **Never `add_subdirectory()` ascon-c.**
-- We use ascon-c's combined folder `crypto_aead_hash/asconaeadxof128/<impl>`, which
-  provides both Ascon-AEAD128 and Ascon-XOF128. Do not also compile the separate AEAD or
-  XOF folders (risk of duplicate symbols).
-- The Ascon implementation is selected with the CMake cache variable `ASCON_IMPL`
-  (default `ref`). Every experiment log records which implementation was used.
-- **Updating a library is a deliberate change:** bump the submodule in its own commit,
-  rerun all known-answer tests, and note the change in `docs/results.md`, since it can
-  shift benchmark numbers. Updating ml-kem also updates its fetched dependencies.
+- **OpenSSL 3.5 or newer** on every node that does cryptography, pinned to an exact
+  version. Record `openssl version -a` in `evidence/bootstrap.log` and in every test
+  log. Do not use a distribution default that lacks `X25519MLKEM768`.
+- Python and C dependencies are listed with exact versions in the README.
+- **Never modify files inside `third_party/`.**
+- *(custom stack)* The `ml-kem` and `ascon-c` submodules stay pinned. Do not update
+  them, `add_subdirectory()` ascon-c, or manage ml-kem's fetched dependencies. They are
+  not needed by the mandatory system.
 
 ## Crypto rules (non-negotiable)
 
-Code comments refer to these by number ("crypto rule 7"), so keep the numbering.
+Code comments refer to these by number ("crypto rule 7"), so keep the numbering. Rules 1
+to 9 are the original rules and stay as written for the frozen custom stack. Rules 10 to
+17 apply to the mandatory system.
+
+### Original rules *(custom stack, rules 1-9)*
 
 1. **Never implement a cryptographic primitive.** ML-KEM and Ascon come from
    `third_party/` only. Our code only wires them together.
@@ -74,86 +89,107 @@ Code comments refer to these by number ("crypto rule 7"), so keep the numbering.
 9. Session keys are derived in `kdf.c` only, with distinct domain-separation labels per
    key and direction. Never use a KEM shared secret directly as an Ascon key.
 
+### Rules for the mandatory system (TLS)
+
+10. **TLS only.** All traffic between Pi A and Pi B goes through a TLS 1.3 connection from
+    OpenSSL. No custom ML-KEM handshake, no second application-layer security protocol,
+    and no Ascon on top of TLS.
+11. **Pin the key-exchange group.** Configuration B accepts only `X25519MLKEM768`.
+    Configuration A accepts only `X25519`. Set the groups explicitly on both client and
+    server, and set TLS 1.3 as both the minimum and the maximum version.
+12. **No downgrade and no fallback.** A hybrid-only peer must refuse a classical-only
+    offer (test T04), and Configuration A must never be used when the system is configured
+    for hybrid. Never retry a failed handshake with a weaker group, or without
+    verification.
+13. **Always verify the peer.** The client verifies the certificate chain against the
+    pinned demo CA and checks the hostname, and treats failure as fatal (test T03). Never
+    set verify-none, and never turn on an "insecure" flag outside a clearly named test
+    that expects the failure.
+14. **Same everything but the group.** Configurations A and B use the same application,
+    hardware, network conditions, certificate policy and TLS cipher suite. The key-exchange
+    group is the only variable.
+15. **ACK only after a durable commit.** Pi A writes a record to its persistent queue and
+    flushes it before sending. Pi B stores `node`+`seq` and the record durably before
+    sending the ACK. Pi A removes a record only after its ACK.
+16. **Exactly-once effects.** The OLED unique-record count changes only when Pi B inserts
+    a new `node`+`seq`. A duplicate is ACKed again with no other effect (test T05).
+17. **Keys and secrets.** Private keys and the demo CA key never go in git. Test
+    certificates are generated by a script and are short-lived. Wipe secret buffers in our
+    own code (`secure_wipe()` in C), and never log keys or session secrets.
+
 ## Protocol rules
 
-- `docs/protocol_spec.md` is the source of truth for packet formats and the handshake.
-  Update the spec **before** changing handshake or packet code, in the same commit.
-- Link MTU is a config value (`link_mtu`), never hard-coded. ML-KEM keys and ciphertexts
-  are larger than one radio packet, so `fragment.c` must handle loss, duplication, and
-  reordering of fragments, with a bounded retransmit timeout.
-- Every encrypted packet header (packet type, sequence number, epoch) is passed to Ascon
-  as associated data, so it is authenticated even though it is not encrypted.
-- The receiver maintains a replay window and rejects old or duplicate sequence numbers.
+- [docs/telemetry_format.md](docs/telemetry_format.md) is the source of truth for the
+  UART frame, the record, the ACK, deduplication, the queue and the trust configuration.
+  Update it **before** changing code that depends on it, in the same commit.
+- *(custom stack)* `docs/protocol_spec.md` is the source of truth for the custom
+  handshake. It does not exist yet and should not be written unless that work resumes.
+- Sequence numbers are 64-bit, per node, start at 1, and never reset or reuse a value.
+- Every value on a wire or in a file has a documented size, byte order and unit.
+- Link and queue sizes are config values, never hard-coded.
 
 ## Memory and timing rules
 
-- No `malloc`/`free` in the handshake or packet path. Use fixed-size buffers sized from
-  the largest supported parameter set (ML-KEM-1024).
 - Every buffer copy uses an explicit length that is checked against the destination
-  size.
-- Never log, print, or write files **inside** a timed region. Record timestamps into
-  memory, then log after the timed region ends.
+  size, in C and in Pico firmware.
+- Never log, print or write files **inside** a timed region. Record timestamps into
+  memory, then write them after the timed region ends.
+- *(custom stack)* No `malloc`/`free` in the handshake or packet path.
 
 ## Measurement and logging
 
-- All events are logged as CSV by `logger.c`, one row per event, with these columns:
-  `run_id, mode, timestamp_ns, endpoint, event, bytes, detail`
-- Events: `handshake_start`, `handshake_done`, `handshake_fail`, `frag_tx`, `frag_rx`,
-  `frag_retx`, `pkt_tx`, `pkt_rx`, `pkt_drop`, `decrypt_fail`, `rekey_start`,
-  `rekey_done`, and `log_dropped` (written by the logger itself when its buffer was
-  full; analysis must treat that run's log as incomplete).
-- `detail` is a number whose meaning depends on the event (error code, sequence number,
-  fragment index, or epoch), documented on each value of `enum log_event` in `logger.h`.
-- `logger_event()` only records into a caller-provided array (no I/O, no allocation) and
-  is safe inside timed regions; `logger_flush()` writes the file and is only called
-  outside them. The logger never overwrites an existing log file.
-- Byte counts include **all** on-air overhead: headers, fragments, retransmissions, AEAD
-  tags.
-- Timestamps come from `CLOCK_MONOTONIC` (`timer_now_ns()`). Power is measured
-  externally by `scripts/power_logger.py`, which must use Python's `time.monotonic_ns()`
-  so its samples line up with our logs on the same machine; runs are matched by
-  `run_id` and timestamp.
-- Required metrics: handshake latency, bytes per session, CPU utilization, energy per
-  handshake, rekey time, and all of these as a function of packet loss.
+- Keep these measurements separate, in separate files: **TLS handshake benchmark**
+  (T10) and **application telemetry** (latency, goodput, queue). Never mix them.
+- Handshake benchmark: 100 or more *successful* handshakes per configuration, with
+  median and p95 latency, bytes on the wire, CPU and memory (with the method written
+  down). Failed attempts are recorded in their own file and are not in the statistics.
+- Application runs record queue capacity, sample rate, duration and accepted-record
+  count, and report any overflow or rejection as a number.
+- Timestamps use a monotonic clock. Power is read externally and matched to a run by a
+  run ID and timestamp. The instrument and logging method are decided with the advisor
+  (Q5) and recorded in the evidence folder.
+- Packet-loss tests use controlled emulation at 0, 10 and 30%. The emulation method
+  (`tc netem` on the Pis or the access point) is recorded with each run (Q10).
+- Report medians and spread over many repetitions, never single runs, and never numbers
+  from Debug builds.
+- *(custom stack)* `logger.c` writes CSV with columns
+  `run_id, mode, timestamp_ns, endpoint, event, bytes, detail`. The logger and timer may
+  be reused for the Pi-side instrumentation if the output matches the required evidence
+  CSV files (Q15).
 
 ## Experiments and reproducibility
 
-- Every experiment is a config file in `experiments/configs/` (mode, loss rate, delay,
-  link rate, MTU, rekey interval, repetitions, random seed). Never change parameters by
-  editing code.
-- Run with `experiments/run_experiment.sh <config>`. It records the git commit hash,
-  **submodule commit hashes** (`git submodule status`), `ASCON_IMPL`, and hardware info
-  alongside the logs.
-- Report medians and spread over many repetitions (default 30+), never single runs, and
-  never numbers from Debug builds.
-- Packet loss for development is simulated with `scripts/netem_setup.sh` (Linux
-  `tc netem`).
+- Every experiment is a config file under `experiments/configs/` (configuration A or B,
+  loss rate, repetitions, queue capacity, sample rate, duration, seed). Never change
+  parameters by editing code.
+- `scripts/run_demo.sh` and the experiment runner record: git commit hash, OpenSSL
+  version, configuration hashes, board IDs and the date, next to every result.
+- Another student must be able to assemble and run the demo from a clean environment
+  with no undocumented steps. This is checked by a teammate who did not write the part.
 
 ## Testing
 
-Every change must keep `ctest` passing. Required coverage:
+Every change must keep `ctest` passing for the code that exists. Required coverage for the
+mandatory system:
 
-- Known-answer tests on each target platform: ML-KEM against the vectors in
-  `third_party/ml-kem/kats/`, and Ascon against the `LWC_*_KAT_*.txt` files in the
-  ascon-c algorithm folder. These run through our wrappers, not just the libraries' own
-  tests.
-- Handshake completes for every mode and parameter set.
-- Fragment reassembly under loss, duplication, and reordering.
-- Replayed, reordered, and tampered packets are rejected.
-- Nonces never repeat, including across rekeys and counter boundaries.
-- Rekey mid-stream with no lost or duplicated application data.
+- T01–T10 from the Build Guide, each with a result row in
+  `tests/positive_and_attack_tests.csv` (and `tests/fault_injection.csv` for failures
+  and recovery).
+- Restart of Pi A and Pi B with records in the queue: nothing lost, nothing counted twice.
+- Truncated, oversized, out-of-range, replayed and out-of-order frames on both the UART
+  and the application protocol are rejected without a crash.
+- A wrong certificate, a wrong hostname and a classical-only peer all fail closed.
 
 New features need an **adversarial test** (what happens when an attacker sends it wrong,
-twice, late, or truncated), not just a happy-path test.
+twice, late or truncated), not just a happy-path test.
 
 Conventions:
 
-- One file per module, `tests/test_<module>.c`, registered in `CMakeLists.txt` with
-  `add_executable` + `add_test`. `test_kem_vectors.c` is reserved for the official KATs.
-- Tests are plain C programs with a `CHECK(cond)` macro that records a failure and keeps
-  going, so one run reports every failure; `main` returns non-zero if any check failed.
-- Tests that cover every KEM loop over all mode numbers and skip modes not yet built, so
-  new modes are tested as soon as they are added to the table in `kem.c`.
+- One file per module, `tests/test_<module>.c` for C code, registered in `CMakeLists.txt`
+  with `add_executable` + `add_test`. Tests are plain programs with a `CHECK(cond)` macro
+  that records a failure and keeps going, so one run reports every failure.
+- *(custom stack)* `test_kem_vectors.c` is reserved for the official KATs; tests that
+  cover every KEM loop over all mode numbers and skip modes not yet built.
 
 ## Research wiki
 
@@ -171,23 +207,29 @@ the essentials are:
 - Use standard markdown links, not `[[wikilinks]]`, and run `python3 scripts/wiki_lint.py`
   after editing the wiki.
 
+## Claims
+
+Hybrid key establishment is **not** post-quantum authentication: the baseline uses a
+classical certificate, and every report says so. This is an educational Wi-Fi link, not
+flight-approved, space-qualified, NASA-endorsed, CCSDS BPv7 DTN or secure boot. Do not
+write otherwise in a report, slide or video.
+
 ## Code style
 
 - `snake_case` for functions and variables; module prefix on public functions
-  (`session_encrypt`, `frag_reassemble`).
-- Functions return `int`: `0` on success, negative error codes from
+  (`queue_append`, `uart_frame_parse`).
+- C functions return `int`: `0` on success, negative error codes from
   `src/common/errors.h`. The one deliberate exception is `secure_wipe()`, which returns
   `void`: it cannot fail and is called on error paths where a code would have nowhere
   to go.
 - Error code values are fixed once written (they appear in logs). Add new codes in the
   module's range of 10; never renumber.
 - `secure_wipe()` and `ct_memcmp()` live in `src/crypto/rng.h` with `rng_bytes()`.
-- Includes are relative to `src/`: `#include "crypto/kem.h"`.
-- Keep functions short; the handshake is an explicit state machine, not nested
-  conditionals.
+- Includes are relative to `src/`: `#include "common/errors.h"`.
+- Keep functions short; state machines are explicit, not nested conditionals.
 - Comment **why**, especially for any security-relevant decision.
-- Format with the repo's `.clang-format` (`clang-format -i <files>`), and make sure every
-  file ends with a newline.
+- Format C with the repo's `.clang-format` (`clang-format -i <files>`), and make sure
+  every file ends with a newline.
 
 ### Documentation (Doxygen)
 
@@ -233,6 +275,7 @@ int rng_bytes(uint8_t *buf, size_t len);
 2. `cmake --build build` with no warnings, and `ctest --test-dir build` all passing.
 3. `cmake --build build --target docs` adds no new Doxygen warnings (if Doxygen is
    installed).
-4. New files are listed in `CMakeLists.txt` and in the repo layout in README.md.
+4. New files are listed in `CMakeLists.txt` (code) and in the repo layout in README.md.
 5. If a module was finished, `docs/design_notes.md` is updated.
 6. If the research wiki changed, `python3 scripts/wiki_lint.py` reports no issues.
+7. No keys, private certificates, source PDFs or invented numbers are staged.

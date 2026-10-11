@@ -6,13 +6,15 @@ construction such as HKDF-SHA256.
 
 **Sources**: [fips-203](../sources.md#fips-203), [sp-800-56c](../sources.md#sp-800-56c), [sp-800-232](../sources.md#sp-800-232), [sp-800-227](../sources.md#sp-800-227), [sp-800-133r3-ipd](../sources.md#sp-800-133r3-ipd)
 
-**Last updated**: 2026-10-08
+**Last updated**: 2026-10-10
 
-**Status**: Open
+**Status**: Superseded 2026-10-10
 
-**Decision**: —
+**Decision**: Not needed: TLS 1.3 derives all session keys with its own HKDF in OpenSSL. No custom KDF and no Ascon ([scope](../../scope.md)).
 
 ---
+
+> **Outcome (2026-10-10).** Only relevant if the Ascon research extension is approved later.
 
 ## Why it matters
 

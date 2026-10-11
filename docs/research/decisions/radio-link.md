@@ -5,13 +5,15 @@
 
 **Sources**: [fips-203](../sources.md#fips-203), [sp-800-232](../sources.md#sp-800-232), [sx1276-datasheet](../sources.md#sx1276-datasheet), [rfd900-datasheet](../sources.md#rfd900-datasheet), [lorawan-rp-1-0-3](../sources.md#lorawan-rp-1-0-3)
 
-**Last updated**: 2026-10-08
+**Last updated**: 2026-10-10
 
-**Status**: Open
+**Status**: Decided 2026-10-10
 
-**Decision**: —
+**Decision**: Dedicated 2.4 GHz Wi-Fi access point between two Raspberry Pis (advisor decision, [scope](../../scope.md)). SiK and LoRa are out of scope, and this page's radio analysis is kept as background.
 
 ---
+
+> **Outcome (2026-10-10).** The Build Guide uses Wi-Fi, and the advisor confirmed it. The airtime and fragmentation analysis below was for SiK and LoRa and does not apply to the mandatory system.
 
 ## Why it matters
 

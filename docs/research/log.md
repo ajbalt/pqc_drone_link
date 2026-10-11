@@ -3,6 +3,18 @@
 Append-only record of every change to the research wiki, newest first. The format is
 described in [README.md](README.md#log-entry-format).
 
+## 2026-10-10 — Decisions closed by the advisor (scope change)
+
+- **No new sources.** The advisor's email set the final scope: the Build Guide governs,
+  TLS 1.3 replaces the custom handshake, Ascon is a later research extension only.
+- **Updated**: `decisions/radio-link.md` (Decided: Wi-Fi AP),
+  `decisions/handshake-auth.md` (Decided: pinned classical certificate, no ML-DSA),
+  `decisions/hybrid-mode.md` (Decided: hybrid is configuration B),
+  `decisions/kdf-construction.md` (Superseded: TLS 1.3 key schedule), `open-questions.md`
+  (scope note, Q14 answered), `index.md`.
+- **Not yet in the wiki**: the Build Guide and the Research Guide. They should be ingested
+  with `/ingest`.
+
 ## 2026-10-08 — Ingest: 11 sources (radio, authentication, randomness and keys, MAVLink)
 
 - **Sources**: `sx1276-datasheet`, `rfd900-datasheet`, `lorawan-rp-1-0-3`, `fips-204`,

@@ -6,9 +6,16 @@ must be settled. Answered questions stay here, with the answer and date.
 
 **Sources**: [fips-203](sources.md#fips-203), [fips-204](sources.md#fips-204), [sp-800-227](sources.md#sp-800-227), [sp-800-232](sources.md#sp-800-232), [sp-800-56c](sources.md#sp-800-56c), [sp-800-57pt1](sources.md#sp-800-57pt1), [sp-800-90c](sources.md#sp-800-90c), [sp-800-133r3-ipd](sources.md#sp-800-133r3-ipd), [sx1276-datasheet](sources.md#sx1276-datasheet), [rfd900-datasheet](sources.md#rfd900-datasheet), [lorawan-rp-1-0-3](sources.md#lorawan-rp-1-0-3)
 
-**Last updated**: 2026-10-08
+**Last updated**: 2026-10-10
 
 ---
+
+> **Scope change (2026-10-10).** The mandatory system uses OpenSSL TLS 1.3, so most of
+> these questions (Ascon, tag truncation, KDF, key confirmation, nonces, fragments, PSK,
+> rekey triggers) are moot unless the custom ML-KEM + Ascon research extension is approved.
+> They stay here for that. Q14 (radio) is answered: Wi-Fi AP. Q11 (mutual or one-way
+> authentication) is still open: the Build Guide specifies server verification only. Current
+> project questions: [advisor_questions.md](../advisor_questions.md).
 
 ## How to use this page
 
@@ -35,7 +42,7 @@ must be settled. Answered questions stay here, with the answer and date.
 | Q11 | Mutual or one-way authentication? | Week 2 (handshake spec) | Open |
 | Q12 | Where would an ML-DSA library come from? | Only if ML-DSA is tested | Open |
 | Q13 | One PSK per drone or per fleet? | Week 2 (if PSK chosen) | Open |
-| Q14 | Which radio hardware, and which region? | Radio decision | Open |
+| Q14 | Which radio hardware, and which region? | Radio decision | Answered 2026-10-10: Wi-Fi AP |
 | Q15 | Raw LoRa or LoRaWAN? | Only if LoRa is used | Open |
 | Q16 | Fragment header size and minimum `link_mtu` | Week 2 (`fragment.c`, protocol spec) | Open |
 | Q17 | Should the logger record computed airtime and radio overhead? | Week 1–2 (`logger.c`) | Open |

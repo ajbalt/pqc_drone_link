@@ -6,14 +6,14 @@ answering a question. How the wiki works: [README.md](README.md). Sources:
 
 ## Decisions
 
-One page per open decision in the repo README.
+One page per open decision in the repo README. The 2026-10-10 advisor decision closed all four; see [scope](../scope.md).
 
 | Page | Status | Question |
 |------|--------|----------|
-| [Radio link](decisions/radio-link.md) | Open | SiK 915 MHz, LoRa, or UDP-only? |
-| [KDF construction](decisions/kdf-construction.md) | Open | Ascon-XOF128 or HKDF-SHA256 for session keys? |
-| [Hybrid mode](decisions/hybrid-mode.md) | Open | Add an X25519 + ML-KEM mode, and how to combine the secrets? |
-| [Handshake authentication](decisions/handshake-auth.md) | Open | Pre-shared key in the KDF, or ML-DSA signatures? |
+| [Radio link](decisions/radio-link.md) | Decided: Wi-Fi AP | SiK 915 MHz, LoRa, or UDP-only? |
+| [KDF construction](decisions/kdf-construction.md) | Superseded: TLS 1.3 | Ascon-XOF128 or HKDF-SHA256 for session keys? |
+| [Hybrid mode](decisions/hybrid-mode.md) | Decided: config B | Add an X25519 + ML-KEM mode, and how to combine the secrets? |
+| [Handshake authentication](decisions/handshake-auth.md) | Decided: pinned cert | Pre-shared key in the KDF, or ML-DSA signatures? |
 
 Smaller and cross-cutting questions (Q1–Q18) are tracked in
 [Open questions](open-questions.md).

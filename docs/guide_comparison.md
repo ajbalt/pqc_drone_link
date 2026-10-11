@@ -109,14 +109,15 @@ reproducibility, and no bare algorithm benchmarks.
 | New work | Pico firmware, UART framing, durable queue, ACK store and dedup, TLS client and server, outage and loss harness, evidence tree. |
 | No-downgrade rule (rule 8) | Maps directly to test T04. |
 
-## Interim decision (2026-10-10)
+## Resolution (2026-10-10)
 
-The questions are sent and unanswered. Until they are answered:
+The advisor replied: the **Build Guide governs**. The custom ML-KEM + Ascon design is
+retained only as a possible research extension after L1-L10. See [scope.md](scope.md) for
+the final scope and [advisor_questions.md](advisor_questions.md) for each answer.
 
-- **Do not** write handshake, fragment, rekey, session, KDF or packet-format code, and do
-  not add the X25519 or ML-KEM wrappers. Any of it may be thrown away.
-- **Safe to do:** keep the existing modules and tests passing, work on hardware bring-up
-  that both guides need (L1–L3: IMU driver, UART framing, OLED, pin map, schematic), and
-  OpenSSL 3.5 setup (L5).
-- CLAUDE.md, CONTRIBUTING.md and README still describe the original design. They are
-  intentionally unchanged until the advisor answers.
+- The custom stack (`kem*`, `mlkem_shim`, `handshake`, `fragment`, `rekey`, Ascon, the
+  `ml-kem` and `ascon-c` submodules) is not part of the mandatory system. Do not extend it.
+- CLAUDE.md, CONTRIBUTING.md and README were rewritten for the new scope on 2026-10-10.
+  The frozen custom stack stays in the tree; whether to archive it is still undecided.
+- Work now: the five review deliverables ([schedule.md](schedule.md)), then L1-L4 hardware
+  bring-up, then OpenSSL 3.5 (L5).
