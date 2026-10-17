@@ -13,9 +13,10 @@ computers first**, with no hardware purchases at this stage. Once there is a wor
 implementation with verified encryption, decryption, communication and performance
 measurements, the migration to Raspberry Pi Pico W boards will be investigated.
 
-- **Phase 1 (now):** the link runs between computers we already have. Same software scope
-  as below: TLS 1.3, configurations A and B, persistent queue, ACK, dedup. Sensor and
-  display are simulated in software (proposed). No purchases.
+- **Phase 1 (now):** the link runs between computers we already have. Focus only on:
+  verified encryption, decryption, communication and performance measurements, using
+  TLS 1.3 with configurations A and B. No purchases. The IMU and OLED are **not**
+  simulated; they are out of Phase 1 and return in Phase 2.
 - **Phase 2 (after the advisor reviews Phase 1 results):** investigate the Pico W
   migration. Not started; needs the advisor's go-ahead.
 - Phase 1 numbers are **computer-to-computer** results. Label every result with its
@@ -23,8 +24,8 @@ measurements, the migration to Raspberry Pi Pico W boards will be investigated.
 - Gates L1–L4 and the T01 hardware test, and anything needing the Pi 4B, Pico, MPU-6050,
   OLED, scope or power instruments, are **deferred to Phase 2**, not failed. Electrical
   measurements (current, power, UART timing) are deferred with them.
-- Open question for the advisor: the email says Pico **W**, while the Build Guide and
-  our BOM use Pico **2** (no Wi-Fi). Do not change the BOM until this is clarified.
+- Pico model: the advisor says either Pico W or Pico 2 is fine, since availability is
+  limited. Choose per what the lab can get and record the model used.
 
 The architecture, configurations and mandatory tests below describe the full system and
 are unchanged.

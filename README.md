@@ -193,14 +193,14 @@ Decided by the advisor on 2026-10-10 ([docs/advisor_questions.md](docs/advisor_q
       not in scope ([decision page](docs/research/decisions/handshake-auth.md))
 - [x] Drone-side hardware: Raspberry Pi 4B plus Pico 2 (per the Build Guide). Superseded for
       now by the 2026-10-16 decision below
+- [x] Pico W or Pico 2 for Phase 2: either is fine, use what is available (2026-10-16)
 - [x] Phase 1 runs on existing computers, no purchases; Pico W migration only after
       verified encryption, decryption, communication and measurements (2026-10-16)
 
 Still open:
 
-- [ ] Which computers run Phase 1, and how the IMU and OLED are simulated (proposed:
-      software generator and console/log output)
-- [ ] Pico W (advisor email) or Pico 2 (Build Guide, BOM) for Phase 2?
+- [ ] Which computers run Phase 1, and what test payload the client sends (no IMU or OLED
+      simulation is needed)
 - [ ] Pico firmware language (C SDK or MicroPython). The Pi services are decided: C17
       (team decision 2026-10-10, still to be confirmed with the advisor, Q11)
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?
