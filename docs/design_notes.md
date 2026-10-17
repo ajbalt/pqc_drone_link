@@ -23,7 +23,8 @@ looks the way it does.
 | 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done      |
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
 | 7    | Application wire format (RECORD, ACK) | `src/proto/wire.h/.c`           | `tests/test_wire.c` | Done         |
-| 8    | TLS link wrapper (OpenSSL, pinned group and suite) | `src/tls/tls_link.h/.c` | `tests/test_tls_link.c` | Next |
+| 8    | TLS link wrapper (OpenSSL, pinned group and suite) | `src/tls/tls_link.h/.c` | `tests/test_tls_link.c` | Done |
+| 9    | TLS server and client programs | `pi/tls_server.c`, `pi/tls_client.c` | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Pi services, Pico firmware and the evidence folder are not started; they follow the gates
@@ -117,6 +118,37 @@ on its own against a fixed byte vector.
 **What to notice.** Big-endian bytes are written with shifts, not struct casts, so the code does
 not depend on CPU byte order. Negative `int16_t` values round-trip through `uint16_t` (defined
 wrap-around); the test vector includes -1 and -32768.
+
+---
+
+## tls_link.h: the TLS 1.3 wrapper
+
+**What it is.** One place that enforces the fixed settings of the experiment: TLS 1.3 only,
+exactly one group (X25519 for A, X25519MLKEM768 for B) on both sides, one cipher suite
+(`TLS_AES_128_GCM_SHA256`), no tickets, and a client that trusts only the pinned CA and checks
+the hostname (crypto rules 10-14).
+
+**Design choices**
+
+- **Opaque `tls_ctx` and `tls_conn`**, so users of the header do not need OpenSSL headers.
+- **Sockets stay with the caller.** The module takes a connected `fd`; timeouts
+  (`SO_RCVTIMEO`) show up as `PQC_ERR_TIMEOUT`, and the caller must ignore `SIGPIPE`.
+- **The negotiated version, group and suite are checked again after the handshake**, and a
+  client re-checks that a verified peer certificate exists. Two independent checks, so removing
+  one by mistake does not open a hole.
+- **Error mapping:** verification failure `PQC_ERR_HS_AUTH` (T03); other handshake failure such
+  as no shared group `PQC_ERR_TLS_HANDSHAKE` (T04); tampered record `PQC_ERR_IO` (T09);
+  clean close `PQC_ERR_TLS_CLOSED`. New codes `-90..-93`.
+- **`PQC_BUILD_TLS` CMake option, default ON,** with `find_package(OpenSSL 3.5 REQUIRED)`; use
+  `-DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9`. The tests make their certificates at test time.
+
+**What to notice.** `SSL_get_error(ssl, 0)` after a failed `_ex` call; `tls_read_exact` loops
+because TLS returns whatever has arrived; every call clears OpenSSL's error queue first so
+`tls_last_error()` is current. Group names compare case-insensitively (`x25519` vs
+`X25519MLKEM768`).
+
+**Follow-ups.** The server's commit hook is a stub until the store exists (rule 15). T09 is
+covered here by raw bytes on a socketpair; repeat it through a proxy on the real link.
 
 ---
 
@@ -235,6 +267,9 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Doxygen describes a struct with the enum's text | Comment block copied and not edited | Read the generated docs (`cmake --build build --target docs`) |
 | Compiler: `no previous prototype for 'wire_encoder_record'` | Name in `.c` differs from the header (`encoder` vs `encode`) | `-Wmissing-prototypes` stops on the definition's line |
 | Compiler: `redefinition of 'wire_decode_record'` | A function pasted twice into the same file | Read the error's line numbers; delete one copy |
+| Config A handshake rejected as a policy violation while B works | OpenSSL names the classical group x25519 in lowercase but the hybrid X25519MLKEM768 | Compare group names with strcasecmp; the test checks both |
+| Doxygen: `Compound tls_conn is not documented` | Opaque struct defined in the `.c` file has no `/** @brief */` | Run the docs target before showing a draft |
+| Tests fail with 'cannot open' or every TLS case fails | Cert script run without `LD_LIBRARY_PATH` for the private OpenSSL, so no certificates were made | CMake runs the script with `LD_LIBRARY_PATH` set |
 | git diff shows "No newline at end of file" | Editor not adding a final newline | Editor setting + `clang-format -i` before committing |
 
 **Reading an "undefined reference" error:** the compiler only checks that
@@ -281,3 +316,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-11 | Added stub folders with READMEs: `hardware/` (with a draft `pin_map.csv` of all 14 connections, unverified on the bench), `pico/`, `pi/`, `experiments/configs/`; header-only `tests/positive_and_attack_tests.csv` and `tests/fault_injection.csv`; ingested the SSD1306 datasheet |
 | 2026-10-16 | Advisor replied: implement and test the complete link on existing computers, no purchases; Pico W migration after verified encryption, decryption, communication and measurements. Recorded as Phase 1 / Phase 2 in `docs/scope.md`, README, `schedule.md`, `bom.md`, CONTRIBUTING. Follow-up: Pico W or Pico 2 both fine; IMU and OLED need not be simulated in Phase 1. Hardware gates deferred. No code changed |
 | 2026-10-16 | `wire` module (RECORD/ACK encode, header check, decode) verified, typed in and tested. Cipher suite decided: `TLS_AES_128_GCM_SHA256`. Next: `tls_link` |
+| 2026-10-16 | `tls_link` module (pinned TLS 1.3 client/server wrapper) verified, typed in and tested: A, B, T02, T03, T04, T09 and timeout over a socketpair. `ctest` 6/6. Next: `tls_server` and `tls_client` programs |

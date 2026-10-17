@@ -65,3 +65,31 @@ if(DOXYGEN_FOUND)
 else()
   message(STATUS "Doxygen not found; 'docs' target unavailable")
 endif()
+
+# TLS link (OpenSSL 3.5+). Point CMake at the pinned build with
+# -DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9 (docs/build_openssl.md).
+option(PQC_BUILD_TLS "Build the TLS link and its tests (needs OpenSSL 3.5+)" ON)
+if(PQC_BUILD_TLS)
+  find_package(OpenSSL 3.5 REQUIRED)
+  add_library(pqc_tls STATIC src/tls/tls_link.c)
+  target_link_libraries(pqc_tls PUBLIC pqc_common OpenSSL::SSL PRIVATE project_warnings)
+
+  # The tests need demo certificates (two CAs). Generate them with the same
+  # openssl binary that the library came from.
+  find_program(PQC_OPENSSL_BIN openssl HINTS "${OPENSSL_INCLUDE_DIR}/../bin"
+               NO_DEFAULT_PATH REQUIRED)
+  get_filename_component(PQC_OPENSSL_LIBDIR "${OPENSSL_CRYPTO_LIBRARY}" DIRECTORY)
+  foreach(name main other)
+    add_test(NAME tls_demo_certs_${name}
+      COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${PQC_OPENSSL_LIBDIR}
+              bash ${CMAKE_SOURCE_DIR}/scripts/make_demo_certs.sh
+              ${PQC_OPENSSL_BIN} ${CMAKE_BINARY_DIR}/certs/${name})
+    set_tests_properties(tls_demo_certs_${name} PROPERTIES FIXTURE_SETUP tls_certs)
+  endforeach()
+
+  add_executable(test_tls_link tests/test_tls_link.c)
+  target_link_libraries(test_tls_link PRIVATE pqc_tls pqc_proto project_warnings)
+  add_test(NAME test_tls_link
+           COMMAND test_tls_link ${CMAKE_BINARY_DIR}/certs/main ${CMAKE_BINARY_DIR}/certs/other)
+  set_tests_properties(test_tls_link PROPERTIES FIXTURE_REQUIRED tls_certs)
+endif()

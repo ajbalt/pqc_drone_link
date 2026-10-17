@@ -76,16 +76,19 @@ There are no submodules any more. If you have an older clone, run
 
 ## Building and testing the existing code
 
-Requires CMake 3.28+ and a C17 compiler. No internet is needed to configure.
+Requires CMake 3.28+, a C17 compiler and OpenSSL 3.5+ (build it first with
+[docs/build_openssl.md](docs/build_openssl.md)). No internet is needed to configure.
 
 ```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
 - Rerun the `cmake -B build ...` configure step only after editing `CMakeLists.txt` or
   changing a cache option.
+- The TLS link needs OpenSSL 3.5+. With only the system OpenSSL, configure stops with
+  "Could NOT find OpenSSL"; to build everything else, add `-DPQC_BUILD_TLS=OFF`.
 - Benchmarks and experiments must use `Release` builds. Debug numbers are never reported.
 
 ### Requirements for the mandatory system
@@ -124,6 +127,9 @@ pqc_drone_link/
 │   ├── proto/
 │   │   ├── wire.h             # RECORD and ACK messages (encode, header check, decode)
 │   │   └── wire.c
+│   ├── tls/
+│   │   ├── tls_link.h         # TLS 1.3 client/server: pinned group and suite, verified peer
+│   │   └── tls_link.c
 │   ├── crypto/
 │   │   ├── rng.h              # rng_bytes(), secure_wipe(), ct_memcmp()
 │   │   └── rng.c              # OS CSPRNG (getrandom())
@@ -143,6 +149,7 @@ pqc_drone_link/
 │   ├── test_rng.c             # rng_bytes(), secure_wipe(), ct_memcmp()
 │   ├── test_metrics.c         # timer.c and logger.c
 │   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
+│   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09 over a socketpair
 │   ├── positive_and_attack_tests.csv  # T01-T10 results (header only so far)
 │   └── fault_injection.csv    # Outage, restart and loss results (header only so far)
 ├── experiments/
