@@ -92,7 +92,8 @@ ctest --test-dir build --output-on-failure
 
 - Raspberry Pi 4B (4 GB) x2 with a 64-bit OS, Raspberry Pi Pico 2 x2, MPU-6050, an SSD1306
   128x64 I2C OLED, a dedicated 2.4 GHz Wi-Fi AP. Full list: [docs/bom.md](docs/bom.md).
-- **OpenSSL 3.5 or newer** on both Pis. Check with
+- **OpenSSL 3.5 or newer** on every node; build steps in
+  [docs/build_openssl.md](docs/build_openssl.md). Check with
   `openssl list -tls1_3 -tls-groups | grep -i X25519MLKEM768`.
 - A DMM and a logic analyzer or scope (lab-owned).
 - Exact dependency versions and configuration hashes are recorded with each result.
@@ -163,6 +164,7 @@ pqc_drone_link/
     ├── telemetry_format.md    # Architecture and protocol: records, ACKs, dedup, queue, trust
     ├── responsibility_matrix.md # Owner and backup for every task
     ├── schedule.md            # L1-L10 mapped to the 28-week gates
+    ├── build_openssl.md       # How to build the pinned OpenSSL 3.5.9 on a team machine
     ├── bom.md                 # Parts, lab equipment, and purchases awaiting approval
     ├── design_notes.md        # Why the code looks the way it does; status and progress log
     ├── threat_model.md        # (planned) What attacks we defend against, and which we don't
