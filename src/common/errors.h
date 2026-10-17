@@ -78,6 +78,25 @@ enum pqc_err {
   PQC_ERR_IO = -70,            /**< socket or serial read/write failed */
   PQC_ERR_TIMEOUT = -71,       /**< no data within receive timeout */
   PQC_ERR_PKT_TOO_LARGE = -72, /**< packet exceeds link_mtu */
+
+  /* Application wire format, wire.c (-80 .. -89) */
+  PQC_ERR_WIRE_BAD_TYPE = -80,   /**< unknown message type byte */
+  PQC_ERR_WIRE_BAD_LENGTH = -81, /**< length wrong for the type, or above the
+                                    maximum payload */
+  PQC_ERR_WIRE_BAD_FIELD = -82,  /**< a field has a forbidden value, such as
+                                    seq 0 */
+
+  /* TLS link, tls_link.c (-90 .. -99). Verification failures use
+   * PQC_ERR_HS_AUTH; socket failures use PQC_ERR_IO and PQC_ERR_TIMEOUT. */
+  PQC_ERR_TLS_INIT = -90, /**< OpenSSL setup failed (context, SSL object) */
+  PQC_ERR_TLS_HANDSHAKE = -91, /**< handshake failed for a reason other than
+                                  peer verification, e.g. no shared group
+                                  (test T04) */
+  PQC_ERR_TLS_POLICY = -92,    /**< handshake finished, but the negotiated
+                                  version, group or cipher suite is not the
+                                  pinned one. Always fatal: no downgrade */
+  PQC_ERR_TLS_CLOSED = -93,    /**< peer closed the connection cleanly */
+
 };
 
 #endif /* PQC_ERRORS_H */

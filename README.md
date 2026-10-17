@@ -48,13 +48,20 @@ and every report says so. This is an educational Wi-Fi link, not flight-approved
 
 ## Status of the code in this repo
 
-`src/` holds only the helpers kept from the earlier work: error codes, RNG and secret-wiping
-helpers, a monotonic timer and a CSV event logger, with tests. The earlier custom ML-KEM +
-Ascon stack was **archived**: it is no longer in `main`, but is preserved at tag
-`custom-stack-v1` and branch `archive/custom-stack` (restore with
-`git checkout custom-stack-v1`). The Pico firmware, the Pi services (C17) and the
-hardware files do not exist yet; they are created as gates L1–L10 are reached. The `evidence/` folder exists with
-its rules and a gate-record template.
+**Phase 1 (computers only, per the advisor on 2026-10-16) is working on the `pc-link` branch:** a
+TLS 1.3 client and server (C17, OpenSSL 3.5.9) that run configurations A and B, the wire format,
+TCP helpers, and the T10 handshake benchmark harness. Mandatory failure cases (T03, T04, T09) are
+covered by automated tests on a development machine. This is **not** gate evidence: that needs the
+Pis. What is still missing: a durable store with deduplication (the server's commit step is a stub),
+the persistent queue, outage and loss tests, server-side benchmark costs, and everything on the
+Pico, sensor and display side (Phase 2). Details and next steps: [docs/design_notes.md](docs/design_notes.md).
+
+`src/` also keeps the helpers from the earlier work: error codes, RNG and secret-wiping helpers, a
+monotonic timer and a CSV event logger, with tests. The earlier custom ML-KEM + Ascon stack was
+**archived**: it is not in `main`, but is preserved at tag `custom-stack-v1` and branch
+`archive/custom-stack` (restore with `git checkout custom-stack-v1`). The `evidence/` folder
+exists with its rules and a gate-record template; the Pico firmware and hardware files are
+Phase 2 and do not exist yet.
 
 ## Gates L1–L10
 
@@ -76,17 +83,47 @@ There are no submodules any more. If you have an older clone, run
 
 ## Building and testing the existing code
 
-Requires CMake 3.28+ and a C17 compiler. No internet is needed to configure.
+Requires CMake 3.28+, a C17 compiler and OpenSSL 3.5+ (build it first with
+[docs/build_openssl.md](docs/build_openssl.md)). No internet is needed to configure.
 
 ```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
 - Rerun the `cmake -B build ...` configure step only after editing `CMakeLists.txt` or
   changing a cache option.
+- The TLS link needs OpenSSL 3.5+. With only the system OpenSSL, configure stops with
+  "Could NOT find OpenSSL"; to build everything else, add `-DPQC_BUILD_TLS=OFF`.
 - Benchmarks and experiments must use `Release` builds. Debug numbers are never reported.
+
+### Running the Phase 1 link by hand
+
+After building, make demo certificates with the same OpenSSL (keys stay out of git):
+
+```sh
+P=$HOME/opt/openssl-3.5.9
+LD_LIBRARY_PATH=$P/lib scripts/make_demo_certs.sh $P/bin/openssl /tmp/demo_certs
+build/tls_server --config B --port 5000 --cert /tmp/demo_certs/srv.crt --key /tmp/demo_certs/srv.key &
+build/tls_client --config B --host 127.0.0.1 --port 5000 --ca /tmp/demo_certs/ca.crt --count 10
+```
+
+`--config A` pins X25519 and `--config B` pins `X25519MLKEM768`; both sides must use the
+same one. The server's commit step is a stub, so its ACK does not yet mean "stored".
+
+### Running the handshake benchmark (T10)
+
+Needs a **Release** build. It starts a configuration-A and a configuration-B server on this machine,
+alternates handshakes between them, and writes the raw CSVs, an environment record and a summary:
+
+```sh
+scripts/run_handshake_bench.sh $HOME/opt/openssl-3.5.9 build \
+    experiments/configs/t10_handshake_loopback.conf results/
+```
+
+Results from a development machine are not gate evidence; record them in
+[docs/results.md](docs/results.md) with the platform. Do not commit raw logs from `results/`.
 
 ### Requirements for the mandatory system
 
@@ -121,14 +158,25 @@ pqc_drone_link/
 ├── src/                       # Code kept from the earlier work
 │   ├── common/
 │   │   └── errors.h           # Negative error codes returned by all functions
+│   ├── proto/
+│   │   ├── wire.h             # RECORD and ACK messages (encode, header check, decode)
+│   │   └── wire.c
+│   ├── net/
+│   │   ├── tcp.h              # Blocking IPv4 TCP helpers (listen, accept, connect, timeouts)
+│   │   └── tcp.c
+│   ├── tls/
+│   │   ├── tls_link.h         # TLS 1.3 client/server: pinned group and suite, verified peer
+│   │   └── tls_link.c
 │   ├── crypto/
 │   │   ├── rng.h              # rng_bytes(), secure_wipe(), ct_memcmp()
 │   │   └── rng.c              # OS CSPRNG (getrandom())
 │   └── metrics/
 │       ├── timer.h / timer.c  # Monotonic wall time and process CPU time
 │       └── logger.h / logger.c # Buffers events in memory, writes CSV logs
-├── pico/                      # Pico firmware (not started); README lists the jobs and prerequisites
-├── pi/                        # Pi services in C17 (not started); README lists the programs and prerequisites
+├── pico/                      # Pico firmware (Phase 2, not started); README lists the jobs and prerequisites
+├── pi/                        # Services in C17; README lists the programs and what is still to come
+│   ├── tls_server.c           # Phase 1 TLS server: accepts RECORDs, ACKs them (commit is a stub)
+│   └── tls_client.c           # Phase 1 TLS client: sends numbered RECORDs, checks each ACK
 ├── hardware/                  # Wiring and boards
 │   ├── README.md              # Rules and file states
 │   └── pin_map.csv            # Draft pin map by physical header pin (not yet verified on the bench)
@@ -139,22 +187,32 @@ pqc_drone_link/
 ├── tests/
 │   ├── test_rng.c             # rng_bytes(), secure_wipe(), ct_memcmp()
 │   ├── test_metrics.c         # timer.c and logger.c
+│   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
+│   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09 over a socketpair
+│   ├── test_tcp.c             # tcp.c on loopback
+│   ├── e2e_tls_link.sh        # tls_server + tls_client as real processes: A, B, T03, T04
+│   ├── e2e_bench.sh           # bench_handshake smoke test and failure paths
+│   ├── test_summarize.py      # summarize_handshakes.py: percentiles, warm-up exclusion
 │   ├── positive_and_attack_tests.csv  # T01-T10 results (header only so far)
 │   └── fault_injection.csv    # Outage, restart and loss results (header only so far)
 ├── experiments/
-│   └── configs/               # One file per experiment; README lists the fields (no runner yet)
+│   ├── bench_handshake.c      # T10 client: many timed handshakes, A and B interleaved
+│   └── configs/               # One file per experiment; README lists the fields
+│       └── t10_handshake_loopback.conf  # Handshake benchmark on one machine
 ├── scripts/
 │   ├── run_demo.sh            # (planned) assemble-and-run for another student
 │   ├── make_demo_certs.sh     # Demo CA and server certificate (backdated 1 day, 30 days)
 │   ├── tls_group_matrix.sh    # Config A/B, T03 and T04 cases on loopback (bring-up check)
 │   ├── tls_handshake_bytes.sh # Handshake bytes for A and B through a counting proxy
 │   ├── proxy_count.py         # Helper: counts TCP payload bytes per direction
+│   ├── run_handshake_bench.sh # Runs the T10 benchmark from a config file; writes CSVs, meta, summary
+│   ├── summarize_handshakes.py # Median, p95, spread per configuration from the raw CSV
 │   ├── netem_setup.sh         # (planned) packet-loss emulation
 │   ├── power_logger.py        # (planned) current/power sensor logging
 │   └── wiki_lint.py           # Health checks for the research wiki
 ├── expected_results.md        # (planned) what a correct run looks like
 ├── analysis/                  # (planned) CSV logs -> tables and charts
-├── results/                   # (planned) raw logs (large ones stored elsewhere)
+├── results/                   # Raw benchmark output from run_handshake_bench.sh (git-ignored, not evidence)
 └── docs/
     ├── research/              # Research wiki: sources, topics, decision pages
     ├── scope.md               # Authoritative project scope (advisor decision, 2026-10-10)
@@ -168,6 +226,10 @@ pqc_drone_link/
     ├── bom.md                 # Parts, lab equipment, and purchases awaiting approval
     ├── design_notes.md        # Why the code looks the way it does; status and progress log
     ├── threat_model.md        # (planned) What attacks we defend against, and which we don't
+    ├── report/                # LaTeX progress report: diagrams and plots from the raw benchmark CSVs
+    │   ├── progress_report.tex  # Build with latexmk -pdf; every number comes from data/numbers.tex
+    │   ├── prepare_data.py      # Turns results/*.ok.csv into the plot data (standard library only)
+    │   └── data/                # Generated plot data; rerun prepare_data.py to refresh
     └── results.md             # Our own measurements (preliminary dev-machine results so far)
 ```
 
@@ -196,13 +258,17 @@ Decided by the advisor on 2026-10-10 ([docs/advisor_questions.md](docs/advisor_q
 - [x] Drone-side hardware: Raspberry Pi 4B plus Pico 2 (per the Build Guide). Superseded for
       now by the 2026-10-16 decision below
 - [x] Pico W or Pico 2 for Phase 2: either is fine, use what is available (2026-10-16)
+- [x] TLS cipher suite shared by configurations A and B: `TLS_AES_128_GCM_SHA256`
+      ([docs/telemetry_format.md](docs/telemetry_format.md) section 8, 2026-10-16)
+- [x] Phase 1 test payload: the spec RECORD with a counter and zeroed IMU values; no IMU or OLED
+      simulation (2026-10-16)
 - [x] Phase 1 runs on existing computers, no purchases; Pico W migration only after
       verified encryption, decryption, communication and measurements (2026-10-16)
 
 Still open:
 
-- [ ] Which computers run Phase 1, and what test payload the client sends (no IMU or OLED
-      simulation is needed)
+- [ ] Which computers run Phase 1 for the final measurements (so far one development machine)
+- [ ] Server-side CPU and memory in the T10 benchmark (the harness measures the client only)
 - [ ] Pico firmware language (C SDK or MicroPython). The Pi services are decided: C17
       (team decision 2026-10-10, still to be confirmed with the advisor, Q11)
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?
@@ -211,9 +277,9 @@ Still open:
 - [ ] Persistent store on each Pi (SQLite, or an append-only file with fsync)
 - [ ] Queue capacity, overflow policy and test durations (proposed in
       [docs/telemetry_format.md](docs/telemetry_format.md))
-- [ ] TLS cipher suite shared by configurations A and B
 - [ ] Confirm: no rekey, no command channel, one-way server authentication (advisor Q6, Q8)
-- [ ] Reuse the existing timer and logger for evidence CSVs? (advisor Q15)
+- [ ] Reuse the existing logger for evidence CSVs? (advisor Q15). The timer is used; the benchmark
+      writes its own per-attempt CSV because the logger's fixed columns do not fit
 
 Smaller questions from the earlier research (Q1–Q18) are in
 [docs/research/open-questions.md](docs/research/open-questions.md). Many were about the

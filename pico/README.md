@@ -1,6 +1,7 @@
 # Pico firmware
 
-Not started. This folder will hold the firmware for the two Raspberry Pi Pico 2 boards:
+Not started (Phase 2: after the computer-only link is verified and the advisor has reviewed it). Either a Pico W or a
+Pico 2 is acceptable per the advisor (2026-10-16); use what is available and record the model. This folder will hold the firmware for the two Raspberry Pi Pico 2 boards:
 
 | Board | Job | Reads |
 |-------|-----|-------|

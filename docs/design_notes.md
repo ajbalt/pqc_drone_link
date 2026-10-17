@@ -22,10 +22,16 @@ looks the way it does.
 | 0    | Error codes                    | `src/common/errors.h`                   | (used by all tests) | Done         |
 | 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done      |
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
+| 7    | Application wire format (RECORD, ACK) | `src/proto/wire.h/.c`           | `tests/test_wire.c` | Done         |
+| 8    | TLS link wrapper (OpenSSL, pinned group and suite) | `src/tls/tls_link.h/.c` | `tests/test_tls_link.c` | Done |
+| 9    | TCP helpers, TLS server and client programs | `src/net/tcp.h/.c`, `pi/tls_server.c`, `pi/tls_client.c` | `tests/test_tcp.c`, `tests/e2e_tls_link.sh` | Done |
+| 10   | T10 handshake benchmark harness | `experiments/bench_handshake.c`, `scripts/run_handshake_bench.sh`, `scripts/summarize_handshakes.py` | `tests/e2e_bench.sh`, `tests/test_summarize.py` | Done (client side) |
+| 11   | Durable store: commit, dedup, persistent queue | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
-Pi services, Pico firmware and the evidence folder are not started; they follow the gates
-in [schedule.md](schedule.md).
+Phase 1 (computers only, advisor 2026-10-16) is implemented through step 10 below on the `pc-link`
+branch. The Pico firmware (Phase 2) and the hardware gates in [schedule.md](schedule.md) are not
+started.
 
 ### Files added beyond the original layout
 
@@ -93,6 +99,132 @@ These are listed in the repo layout in README.md.
 `PQC_ERR_REPLAY` and `PQC_ERR_IO`, and the build still passed because no
 file used them yet. The build passing does not prove a header is correct;
 a test that uses every value does.
+
+---
+
+## wire.h: RECORD and ACK messages
+
+**What it is.** Builds and checks the application messages that travel inside the TLS stream
+(`docs/telemetry_format.md` sections 3 and 4). No I/O and no OpenSSL, so the layout is tested
+on its own against a fixed byte vector.
+
+**Design choices**
+
+- **`wire_parse_header()` is separate from the decoders.** It checks the type, the maximum
+  payload (64) and the exact length for the type before any payload is read, so a length is
+  never trusted unchecked.
+- **`seq` 0 is refused on encode and decode** (spec section 4).
+- **Decoders zero their output on failure**, so an ignored return code cannot leak half-filled data.
+- **Error codes `-80..-82`** (`PQC_ERR_WIRE_*`), separate from the archived handshake codes.
+- **Phase 1 payload:** `seq` counts up from 1, the six `imu` values are zero (decided 2026-10-16).
+
+**What to notice.** Big-endian bytes are written with shifts, not struct casts, so the code does
+not depend on CPU byte order. Negative `int16_t` values round-trip through `uint16_t` (defined
+wrap-around); the test vector includes -1 and -32768.
+
+---
+
+## tls_link.h: the TLS 1.3 wrapper
+
+**What it is.** One place that enforces the fixed settings of the experiment: TLS 1.3 only,
+exactly one group (X25519 for A, X25519MLKEM768 for B) on both sides, one cipher suite
+(`TLS_AES_128_GCM_SHA256`), no tickets, and a client that trusts only the pinned CA and checks
+the hostname (crypto rules 10-14).
+
+**Design choices**
+
+- **Opaque `tls_ctx` and `tls_conn`**, so users of the header do not need OpenSSL headers.
+- **Sockets stay with the caller.** The module takes a connected `fd`; timeouts
+  (`SO_RCVTIMEO`) show up as `PQC_ERR_TIMEOUT`, and the caller must ignore `SIGPIPE`.
+- **The negotiated version, group and suite are checked again after the handshake**, and a
+  client re-checks that a verified peer certificate exists. Two independent checks, so removing
+  one by mistake does not open a hole.
+- **Error mapping:** verification failure `PQC_ERR_HS_AUTH` (T03); other handshake failure such
+  as no shared group `PQC_ERR_TLS_HANDSHAKE` (T04); tampered record `PQC_ERR_IO` (T09);
+  clean close `PQC_ERR_TLS_CLOSED`. New codes `-90..-93`.
+- **`PQC_BUILD_TLS` CMake option, default ON,** with `find_package(OpenSSL 3.5 REQUIRED)`; use
+  `-DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9`. The tests make their certificates at test time.
+
+**What to notice.** `SSL_get_error(ssl, 0)` after a failed `_ex` call; `tls_read_exact` loops
+because TLS returns whatever has arrived; every call clears OpenSSL's error queue first so
+`tls_last_error()` is current. Group names compare case-insensitively (`x25519` vs
+`X25519MLKEM768`).
+
+**Follow-ups.** The server's commit hook is a stub until the store exists (rule 15). T09 is
+covered here by raw bytes on a socketpair; repeat it through a proxy on the real link.
+
+---
+
+## tcp.h, tls_server and tls_client: the Phase 1 link
+
+**What it is.** `tcp.c` holds the socket code both programs share. `tls_server` and `tls_client`
+(in `pi/`) use `tls_link` and `wire` to send numbered RECORDs and check each ACK on one machine.
+
+**Design choices**
+
+- **The commit step is a stub.** `commit_record()` stores nothing, so an ACK is not yet a durable
+  commit (rule 15). The server warns on startup. The store module replaces it.
+- **Stop-and-wait.** One record in flight; the window of 32 comes with the persistent queue.
+- **IPv4 literals for `--host` and `--bind`.** The certificate name is checked by TLS
+  (`--hostname`), not by DNS.
+- **`--port 0` and `--max-conns N`** let the end-to-end script start a server on a free port and
+  have it stop by itself.
+- **The server closes the connection** on an unknown type, bad length, `seq` 0 or unknown node.
+- **No retry and no fallback in the client.** Any failure ends the run with a non-zero exit code.
+
+**What to notice.** The server checks a header's length before reading the payload; `TCP_NODELAY`
+keeps 12-36 byte messages from being batched; the client frees everything through one `goto done`
+path; the end-to-end script checks that a failing case never prints `connected` on the server, so a
+test cannot pass for the wrong reason.
+
+**Follow-ups.** Replace `commit_record()` with a durable store and deduplication (T05); add the
+persistent queue and the window of 32 on the client (T06-T08); the benchmark harness (T10) and the
+loss emulation (`tc netem`) are separate modules; T09 here is raw bytes on a socketpair, repeat it
+through a proxy on the real link.
+
+---
+
+## The T10 handshake benchmark harness
+
+**What it is.** `bench_handshake` makes many full TLS handshakes against two servers (A and B),
+alternating between them, and writes one CSV row per attempt. `summarize_handshakes.py` turns the
+raw CSV into median, p95 and spread. `run_handshake_bench.sh` reads an experiment config, starts
+both servers, runs the harness and records the environment (commit, OpenSSL, config hash, CPU
+temperature and frequency where available).
+
+**Design choices**
+
+- **Interleaved A and B**, so drift in load or temperature affects both equally (rule 14).
+- **Warm-up excluded;** failures go to a separate file and are never in the statistics.
+- **Nothing is written inside a timed region.** Rows are kept in memory and written at the end.
+- **Bytes from OpenSSL's socket counters** (`tls_conn_bytes`): exact for the TLS stream, without
+  TCP/IP headers. Cross-check: B minus A is +1176 B sent and +1088 B received, exactly the ML-KEM-768
+  key and ciphertext sizes.
+- **Memory = heap held by the open connection** (`mallinfo2`), plus the process peak RSS once per run.
+  The transient peak inside the handshake is not captured.
+- **Own CSV writer, not `logger.c`**, because the per-attempt columns do not fit the logger (advisor
+  question Q15 is still open).
+- **Debug builds are refused** (no `NDEBUG`), and existing result files are never overwritten.
+
+**What to notice.** `wait_for_close()` keeps the previous connection's cleanup out of the next
+attempt's latency; `fopen(..., "wx")` makes "never overwrite" an OS guarantee; percentiles are
+nearest-rank and unit-tested on `1..100`.
+
+**Follow-ups.** Measure server-side CPU and memory (T10 asks for both ends of the cost); take packet
+captures for byte totals with headers on the real link; run on the Pis with board IDs and put the
+output in `evidence/`; add packet-loss runs once `tc netem` is set up; decide Q15 (logger reuse).
+
+---
+
+## Progress report (LaTeX)
+
+`docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
+design, wire format, verification table and benchmark plots. Plot data comes from
+`prepare_data.py`, which reads the raw `results/*.ok.csv` files and writes `docs/report/data/`,
+including `numbers.tex`, the macros the text uses, so no measurement is typed by hand. It refuses
+to run on non-Release rows. All results in it are labelled preliminary (development computer,
+loopback, not gate evidence). Rebuild after new benchmark runs: run `prepare_data.py`, then
+`latexmk -pdf progress_report.tex` (MiKTeX on Windows works; add `--enable-installer` for packages).
 
 ---
 
@@ -209,6 +341,14 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Build passes, but an error code "doesn't exist" when first used | An unterminated `/*` comment in `errors.h` swallowed the next enum line | Tests that use every value; read compiler output for "undeclared" |
 | Linker: `undefined reference to 'timer_cpu_ns'` | Typo between header and `.c` file (`timer_cput_ns`); each file compiled fine on its own | `-Wmissing-prototypes` now fails the build on the exact line |
 | Doxygen describes a struct with the enum's text | Comment block copied and not edited | Read the generated docs (`cmake --build build --target docs`) |
+| Compiler: `no previous prototype for 'wire_encoder_record'` | Name in `.c` differs from the header (`encoder` vs `encode`) | `-Wmissing-prototypes` stops on the definition's line |
+| Compiler: `redefinition of 'wire_decode_record'` | A function pasted twice into the same file | Read the error's line numbers; delete one copy |
+| Config A handshake rejected as a policy violation while B works | OpenSSL names the classical group x25519 in lowercase but the hybrid X25519MLKEM768 | Compare group names with strcasecmp; the test checks both |
+| Doxygen: `Compound tls_conn is not documented` | Opaque struct defined in the `.c` file has no `/** @brief */` | Run the docs target before showing a draft |
+| Tests fail with 'cannot open' or every TLS case fails | Cert script run without `LD_LIBRARY_PATH` for the private OpenSSL, so no certificates were made | CMake runs the script with `LD_LIBRARY_PATH` set |
+| Tests pass locally but a fresh build fails with "server did not start" | CTest properties are `FIXTURES_SETUP` and `FIXTURES_REQUIRED` (plural); singular names are silently ignored, so only definition order made it work | Test from an empty build directory |
+| `bash: tests/e2e_bench.sh: No such file or directory` | File saved as `tests/ e2e_bench.sh` (leading space) | `ls -b tests` shows the escaped name |
+| `Permission denied` running a script | Typed-in files get mode 0644 | `chmod +x`, as `make_demo_certs.sh` has in git |
 | git diff shows "No newline at end of file" | Editor not adding a final newline | Editor setting + `clang-format -i` before committing |
 
 **Reading an "undefined reference" error:** the compiler only checks that
@@ -254,3 +394,7 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-11 | Added key, certificate and video patterns to `.gitignore` (rule 17); created `evidence/README.md` and `evidence/GATE_RECORD_TEMPLATE.md`; ingested the Pi 4, Pico 2, MPU-6050 datasheets, MPU register map, Pico 2 pinout, RP2350 and SSD1306 datasheets (wiki pages; subagents per document for the first four) |
 | 2026-10-11 | Added stub folders with READMEs: `hardware/` (with a draft `pin_map.csv` of all 14 connections, unverified on the bench), `pico/`, `pi/`, `experiments/configs/`; header-only `tests/positive_and_attack_tests.csv` and `tests/fault_injection.csv`; ingested the SSD1306 datasheet |
 | 2026-10-16 | Advisor replied: implement and test the complete link on existing computers, no purchases; Pico W migration after verified encryption, decryption, communication and measurements. Recorded as Phase 1 / Phase 2 in `docs/scope.md`, README, `schedule.md`, `bom.md`, CONTRIBUTING. Follow-up: Pico W or Pico 2 both fine; IMU and OLED need not be simulated in Phase 1. Hardware gates deferred. No code changed |
+| 2026-10-16 | `wire` module (RECORD/ACK encode, header check, decode) verified, typed in and tested. Cipher suite decided: `TLS_AES_128_GCM_SHA256`. Next: `tls_link` |
+| 2026-10-16 | `tls_link` module (pinned TLS 1.3 client/server wrapper) verified, typed in and tested: A, B, T02, T03, T04, T09 and timeout over a socketpair. `ctest` 6/6. Next: `tls_server` and `tls_client` programs |
+| 2026-10-17 | `tcp`, `tls_server` and `tls_client` typed in and tested. First end-to-end run on one machine: A and B succeed, T03 and T04 fail closed, as real processes. `ctest` 8/8. Commit step is a stub. Next: durable store, dedup and ACK-after-commit |
+| 2026-10-17 | T10 handshake benchmark harness typed in and tested: `bench_handshake`, `run_handshake_bench.sh`, `summarize_handshakes.py`, `tls_conn_bytes`. Fixed the CTest fixture property names (plural). First full run on this machine produced CSVs, meta and summary in `results/` (dev machine, not evidence). `ctest` 10/10 |

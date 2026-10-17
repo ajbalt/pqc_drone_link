@@ -76,6 +76,10 @@ measured with a clock reference both nodes share, or with a logic analyzer on th
 
 ## 4. Messages over TLS
 
+**Phase 1 (2026-10-16):** no IMU exists yet, so the client sends the same 33-byte RECORD with
+`seq` counting up from 1, `ts_ms` and `pico_ms` set from the clocks, and the six `imu` values
+set to zero. The framing and fields do not change in Phase 2.
+
 The application sends length-prefixed messages inside the TLS stream. Big-endian.
 
 | Size | Field |
@@ -134,7 +138,7 @@ of 10 minutes each, repeated 10 times. Confirm counts with the advisor.
 |---------|-----------------------------|--------------------------|
 | TLS version | 1.3 only (min = max) | 1.3 only (min = max) |
 | Key-exchange group | `X25519` only | `X25519MLKEM768` only |
-| Cipher suite | One suite, identical in both *(proposed: `TLS_AES_128_GCM_SHA256`)* | same |
+| Cipher suite | One suite, identical in both: `TLS_AES_128_GCM_SHA256` (decided 2026-10-16) | same |
 | Server certificate | Pinned demo CA, hostname `relay.test` *(from the Build Guide example)* | same |
 | Peer verification | Required; failure is fatal | Required; failure is fatal |
 | Client certificate | None (one-way authentication) *(open)* | None *(open)* |
@@ -180,6 +184,18 @@ of 10 minutes each, repeated 10 times. Confirm counts with the advisor.
 - **Application telemetry.** Goodput, sensor-to-display latency, queue occupancy and drain
   time come from the live record flow and are stored in other files.
 
+**How the harness measures it (Phase 1, `experiments/bench_handshake.c`).**
+Configurations A and B are interleaved (A, B, A, B, ...) so drift hits both equally; the first
+5 successes per configuration are warm-up and excluded; contexts are built once before timing, and
+tickets and resumption are off so every attempt is a full handshake. Per attempt, on the client
+side only: both latencies above; client CPU time over the connect-to-handshake span; handshake
+bytes sent and received as counted by OpenSSL on the socket (the TLS byte stream, exact, without
+TCP/IP headers; a packet capture is still needed for totals with headers); and `heap_delta_bytes`,
+the live heap held by the open connection (`mallinfo2()`). The transient peak inside the handshake
+is not captured per attempt; the process peak RSS is printed once per run. Server-side CPU and
+memory are not measured yet. Percentiles are nearest-rank. Successes go to `*.ok.csv`, failures to
+`*.fail.csv`, and a run with fewer than 100 measured successes is marked INSUFFICIENT.
+
 Handshake numbers never come from a run that was also carrying telemetry unless the report
 says so. Each benchmark run also records the Pi's CPU temperature and clock frequency, because the Pi 4
 throttles to stay under 85 °C ([Raspberry Pi 4](research/raspberry-pi-4.md)) *(proposed)*.
@@ -189,7 +205,6 @@ throttles to stay under 85 °C ([Raspberry Pi 4](research/raspberry-pi-4.md)) *(
 - Persistent store choice. The Pi services are written in C (team decision, 2026-10-10;
   the advisor has not objected). Pico firmware language is still open.
 - Final queue size, overflow policy, in-flight window and timeouts above.
-- The shared cipher suite for A and B.
 - Whether Pi B authenticates Pi A (mutual TLS). The Build Guide asks for server
   verification only.
 - The IMU ranges, and whether gyro values stay in the record or only acceleration does.
