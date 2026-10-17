@@ -30,6 +30,9 @@ spec and the advisor's approval.
   from a raw CSV or capture in `evidence/` that someone else can re-run.
 - No purchasing, PCB or connector orders, and no optional work (Ascon, custom protocol,
   FPGA, dashboards), without advisor approval.
+- **Phase 1 (advisor, 2026-10-16):** the link is built and measured on existing computers
+  first. Hardware gates are deferred, not failed. Every result records its platform
+  (CPU, OS, OpenSSL version) and is never reported as Pi 4B or Pico data.
 - Electrical safety: pins are 3.3 V only, no load powered from a GPIO or Pi header, wire
   with power off, and record header photos before powering up. See the Build Guide.
 

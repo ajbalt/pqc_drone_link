@@ -10,7 +10,9 @@ communication failures?
 
 **Scope.** The advisor's decision of 2026-10-10 is final: the RSCL PQC LINK Build Guide V2
 is the implementation and acceptance document, and it replaces the earlier custom
-ML-KEM + Ascon design. Details: [docs/scope.md](docs/scope.md). Background:
+ML-KEM + Ascon design. **Phase 1 (advisor, 2026-10-16):** build and measure the complete link on existing
+computers first, no purchases; Pico W migration is investigated afterwards. Details:
+[docs/scope.md](docs/scope.md). Background:
 [docs/guide_comparison.md](docs/guide_comparison.md).
 
 ## The system
@@ -189,10 +191,16 @@ Decided by the advisor on 2026-10-10 ([docs/advisor_questions.md](docs/advisor_q
       ([decision page](docs/research/decisions/hybrid-mode.md))
 - [x] Authentication: pinned classical demo certificate with hostname check; ML-DSA is
       not in scope ([decision page](docs/research/decisions/handshake-auth.md))
-- [x] Drone-side hardware: Raspberry Pi 4B plus Pico 2 (per the Build Guide)
+- [x] Drone-side hardware: Raspberry Pi 4B plus Pico 2 (per the Build Guide). Superseded for
+      now by the 2026-10-16 decision below
+- [x] Phase 1 runs on existing computers, no purchases; Pico W migration only after
+      verified encryption, decryption, communication and measurements (2026-10-16)
 
 Still open:
 
+- [ ] Which computers run Phase 1, and how the IMU and OLED are simulated (proposed:
+      software generator and console/log output)
+- [ ] Pico W (advisor email) or Pico 2 (Build Guide, BOM) for Phase 2?
 - [ ] Pico firmware language (C SDK or MicroPython). The Pi services are decided: C17
       (team decision 2026-10-10, still to be confirmed with the advisor, Q11)
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?

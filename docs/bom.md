@@ -6,6 +6,10 @@ assigned team member and date, plus an approved equivalent. **Nothing is bought 
 instructor signs the BOM and the current quotations.** Prices in the Build Guide are
 budget allowances, not quotes, so none are copied here.
 
+**Phase 1 (2026-10-16): no purchases.** The advisor asked us to use existing computers
+first. Nothing here is requested until Phase 2, and the Pico 2 vs Pico W question is open
+(the advisor's email says Pico W).
+
 **Status: DRAFT.** The part list comes from the Build Guide ("LINK: Purchase or reserve
 these exact parts"). Everything marked TBD must be checked against what RSCL has in stock
 and filled in. No prices are invented.

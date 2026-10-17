@@ -6,6 +6,29 @@ Build Guide V2 is the implementation and acceptance document. Background on the
 conflict: [guide_comparison.md](guide_comparison.md). Answers to our questions:
 [advisor_questions.md](advisor_questions.md).
 
+## Phase 1 direction (advisor, 2026-10-16)
+
+The advisor asked us to implement and test the complete PQC secure link **on existing
+computers first**, with no hardware purchases at this stage. Once there is a working
+implementation with verified encryption, decryption, communication and performance
+measurements, the migration to Raspberry Pi Pico W boards will be investigated.
+
+- **Phase 1 (now):** the link runs between computers we already have. Same software scope
+  as below: TLS 1.3, configurations A and B, persistent queue, ACK, dedup. Sensor and
+  display are simulated in software (proposed). No purchases.
+- **Phase 2 (after the advisor reviews Phase 1 results):** investigate the Pico W
+  migration. Not started; needs the advisor's go-ahead.
+- Phase 1 numbers are **computer-to-computer** results. Label every result with its
+  platform and never present it as Pi 4B or Pico data.
+- Gates L1–L4 and the T01 hardware test, and anything needing the Pi 4B, Pico, MPU-6050,
+  OLED, scope or power instruments, are **deferred to Phase 2**, not failed. Electrical
+  measurements (current, power, UART timing) are deferred with them.
+- Open question for the advisor: the email says Pico **W**, while the Build Guide and
+  our BOM use Pico **2** (no Wi-Fi). Do not change the BOM until this is clarified.
+
+The architecture, configurations and mandatory tests below describe the full system and
+are unchanged.
+
 ## Research question
 
 What are the measured performance, communication and energy costs of introducing hybrid
@@ -76,7 +99,8 @@ From the Build Guide. Mark PASS only from evidence, and record each result in
 Gates L1–L10 (details and evidence files in [schedule.md](schedule.md)):
 L1–L4 hardware, IMU, UART, OLED and plain diagnostic. L5–L6 OpenSSL and hybrid TLS.
 L7–L9 persistent queue, ACKs, dedup, outage recovery. L10 loss tests and final
-comparison. If a gate fails, fix it before moving on. **No** Ascon, custom protocol or
+comparison. If a gate fails, fix it before moving on. Until Phase 2, only the software
+gates are worked, on computers; see "Phase 1 direction" above. **No** Ascon, custom protocol or
 FPGA work until L1–L10 are complete and approved. **No** purchasing or optional
 architecture work without approval.
 

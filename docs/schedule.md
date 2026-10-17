@@ -7,6 +7,14 @@ faculty gates (G0–G8).
 not say which L falls in which G, so the mapping below is our proposal. Weeks are relative
 to team kickoff, which was not given: **kickoff date: TBD.** Fill in dates once it is set.
 
+## Phase 1 / Phase 2 (advisor, 2026-10-16)
+
+Phase 1 runs the complete link on existing computers, with no purchases. Gates and
+weeks that need Pi 4B, Pico, sensor, OLED or instruments are **deferred to Phase 2**
+(Pico W migration, after the advisor reviews Phase 1). The mapping below is the full
+plan; the software parts of L5–L10 come first. Dates need re-planning once the Phase 1
+computers are chosen.
+
 ## Mapping
 
 | Weeks | Faculty gate | Build gates | What must be true (evidence) |
