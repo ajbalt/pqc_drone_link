@@ -20,8 +20,17 @@ target_include_directories(pqc_common INTERFACE src)
 add_library(pqc_crypto STATIC src/crypto/rng.c)
 target_link_libraries(pqc_crypto PUBLIC pqc_common PRIVATE project_warnings)
 
+# Metrics
 add_library(pqc_metrics STATIC src/metrics/timer.c src/metrics/logger.c)
 target_link_libraries(pqc_metrics PUBLIC pqc_common PRIVATE project_warnings)
+
+# Application wire format: RECORD and ACK messages
+add_library(pqc_proto STATIC src/proto/wire.c)
+target_link_libraries(pqc_proto PUBLIC pqc_common PRIVATE project_warnings)
+
+add_executable(test_wire tests/test_wire.c)
+target_link_libraries(test_wire PRIVATE pqc_proto project_warnings)
+add_test(NAME test_wire COMMAND test_wire)
 
 enable_testing()
 

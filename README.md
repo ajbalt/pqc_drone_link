@@ -121,6 +121,9 @@ pqc_drone_link/
 ├── src/                       # Code kept from the earlier work
 │   ├── common/
 │   │   └── errors.h           # Negative error codes returned by all functions
+│   ├── proto/
+│   │   ├── wire.h             # RECORD and ACK messages (encode, header check, decode)
+│   │   └── wire.c
 │   ├── crypto/
 │   │   ├── rng.h              # rng_bytes(), secure_wipe(), ct_memcmp()
 │   │   └── rng.c              # OS CSPRNG (getrandom())
@@ -139,6 +142,7 @@ pqc_drone_link/
 ├── tests/
 │   ├── test_rng.c             # rng_bytes(), secure_wipe(), ct_memcmp()
 │   ├── test_metrics.c         # timer.c and logger.c
+│   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
 │   ├── positive_and_attack_tests.csv  # T01-T10 results (header only so far)
 │   └── fault_injection.csv    # Outage, restart and loss results (header only so far)
 ├── experiments/
@@ -196,6 +200,8 @@ Decided by the advisor on 2026-10-10 ([docs/advisor_questions.md](docs/advisor_q
 - [x] Drone-side hardware: Raspberry Pi 4B plus Pico 2 (per the Build Guide). Superseded for
       now by the 2026-10-16 decision below
 - [x] Pico W or Pico 2 for Phase 2: either is fine, use what is available (2026-10-16)
+- [x] TLS cipher suite shared by configurations A and B: `TLS_AES_128_GCM_SHA256`
+      ([docs/telemetry_format.md](docs/telemetry_format.md) section 8, 2026-10-16)
 - [x] Phase 1 runs on existing computers, no purchases; Pico W migration only after
       verified encryption, decryption, communication and measurements (2026-10-16)
 
@@ -211,7 +217,6 @@ Still open:
 - [ ] Persistent store on each Pi (SQLite, or an append-only file with fsync)
 - [ ] Queue capacity, overflow policy and test durations (proposed in
       [docs/telemetry_format.md](docs/telemetry_format.md))
-- [ ] TLS cipher suite shared by configurations A and B
 - [ ] Confirm: no rekey, no command channel, one-way server authentication (advisor Q6, Q8)
 - [ ] Reuse the existing timer and logger for evidence CSVs? (advisor Q15)
 

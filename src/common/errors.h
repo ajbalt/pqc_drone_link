@@ -78,6 +78,13 @@ enum pqc_err {
   PQC_ERR_IO = -70,            /**< socket or serial read/write failed */
   PQC_ERR_TIMEOUT = -71,       /**< no data within receive timeout */
   PQC_ERR_PKT_TOO_LARGE = -72, /**< packet exceeds link_mtu */
+
+  /* Application wire format, wire.c (-80 .. -89) */
+  PQC_ERR_WIRE_BAD_TYPE = -80,   /**< unknown message type byte */
+  PQC_ERR_WIRE_BAD_LENGTH = -81, /**< length wrong for the type, or above the
+                                    maximum payload */
+  PQC_ERR_WIRE_BAD_FIELD = -82,  /**< a field has a forbidden value, such as
+                                    seq 0 */
 };
 
 #endif /* PQC_ERRORS_H */

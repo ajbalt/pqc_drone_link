@@ -22,6 +22,8 @@ looks the way it does.
 | 0    | Error codes                    | `src/common/errors.h`                   | (used by all tests) | Done         |
 | 1    | Timing and event logging       | `src/metrics/timer.h/.c`, `logger.h/.c` | `tests/test_metrics.c` | Done      |
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
+| 7    | Application wire format (RECORD, ACK) | `src/proto/wire.h/.c`           | `tests/test_wire.c` | Done         |
+| 8    | TLS link wrapper (OpenSSL, pinned group and suite) | `src/tls/tls_link.h/.c` | `tests/test_tls_link.c` | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Pi services, Pico firmware and the evidence folder are not started; they follow the gates
@@ -93,6 +95,28 @@ These are listed in the repo layout in README.md.
 `PQC_ERR_REPLAY` and `PQC_ERR_IO`, and the build still passed because no
 file used them yet. The build passing does not prove a header is correct;
 a test that uses every value does.
+
+---
+
+## wire.h: RECORD and ACK messages
+
+**What it is.** Builds and checks the application messages that travel inside the TLS stream
+(`docs/telemetry_format.md` sections 3 and 4). No I/O and no OpenSSL, so the layout is tested
+on its own against a fixed byte vector.
+
+**Design choices**
+
+- **`wire_parse_header()` is separate from the decoders.** It checks the type, the maximum
+  payload (64) and the exact length for the type before any payload is read, so a length is
+  never trusted unchecked.
+- **`seq` 0 is refused on encode and decode** (spec section 4).
+- **Decoders zero their output on failure**, so an ignored return code cannot leak half-filled data.
+- **Error codes `-80..-82`** (`PQC_ERR_WIRE_*`), separate from the archived handshake codes.
+- **Phase 1 payload:** `seq` counts up from 1, the six `imu` values are zero (decided 2026-10-16).
+
+**What to notice.** Big-endian bytes are written with shifts, not struct casts, so the code does
+not depend on CPU byte order. Negative `int16_t` values round-trip through `uint16_t` (defined
+wrap-around); the test vector includes -1 and -32768.
 
 ---
 
@@ -209,6 +233,8 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Build passes, but an error code "doesn't exist" when first used | An unterminated `/*` comment in `errors.h` swallowed the next enum line | Tests that use every value; read compiler output for "undeclared" |
 | Linker: `undefined reference to 'timer_cpu_ns'` | Typo between header and `.c` file (`timer_cput_ns`); each file compiled fine on its own | `-Wmissing-prototypes` now fails the build on the exact line |
 | Doxygen describes a struct with the enum's text | Comment block copied and not edited | Read the generated docs (`cmake --build build --target docs`) |
+| Compiler: `no previous prototype for 'wire_encoder_record'` | Name in `.c` differs from the header (`encoder` vs `encode`) | `-Wmissing-prototypes` stops on the definition's line |
+| Compiler: `redefinition of 'wire_decode_record'` | A function pasted twice into the same file | Read the error's line numbers; delete one copy |
 | git diff shows "No newline at end of file" | Editor not adding a final newline | Editor setting + `clang-format -i` before committing |
 
 **Reading an "undefined reference" error:** the compiler only checks that
@@ -254,3 +280,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-11 | Added key, certificate and video patterns to `.gitignore` (rule 17); created `evidence/README.md` and `evidence/GATE_RECORD_TEMPLATE.md`; ingested the Pi 4, Pico 2, MPU-6050 datasheets, MPU register map, Pico 2 pinout, RP2350 and SSD1306 datasheets (wiki pages; subagents per document for the first four) |
 | 2026-10-11 | Added stub folders with READMEs: `hardware/` (with a draft `pin_map.csv` of all 14 connections, unverified on the bench), `pico/`, `pi/`, `experiments/configs/`; header-only `tests/positive_and_attack_tests.csv` and `tests/fault_injection.csv`; ingested the SSD1306 datasheet |
 | 2026-10-16 | Advisor replied: implement and test the complete link on existing computers, no purchases; Pico W migration after verified encryption, decryption, communication and measurements. Recorded as Phase 1 / Phase 2 in `docs/scope.md`, README, `schedule.md`, `bom.md`, CONTRIBUTING. Follow-up: Pico W or Pico 2 both fine; IMU and OLED need not be simulated in Phase 1. Hardware gates deferred. No code changed |
+| 2026-10-16 | `wire` module (RECORD/ACK encode, header check, decode) verified, typed in and tested. Cipher suite decided: `TLS_AES_128_GCM_SHA256`. Next: `tls_link` |

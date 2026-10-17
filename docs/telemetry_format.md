@@ -76,6 +76,10 @@ measured with a clock reference both nodes share, or with a logic analyzer on th
 
 ## 4. Messages over TLS
 
+**Phase 1 (2026-10-16):** no IMU exists yet, so the client sends the same 33-byte RECORD with
+`seq` counting up from 1, `ts_ms` and `pico_ms` set from the clocks, and the six `imu` values
+set to zero. The framing and fields do not change in Phase 2.
+
 The application sends length-prefixed messages inside the TLS stream. Big-endian.
 
 | Size | Field |
@@ -134,7 +138,7 @@ of 10 minutes each, repeated 10 times. Confirm counts with the advisor.
 |---------|-----------------------------|--------------------------|
 | TLS version | 1.3 only (min = max) | 1.3 only (min = max) |
 | Key-exchange group | `X25519` only | `X25519MLKEM768` only |
-| Cipher suite | One suite, identical in both *(proposed: `TLS_AES_128_GCM_SHA256`)* | same |
+| Cipher suite | One suite, identical in both: `TLS_AES_128_GCM_SHA256` (decided 2026-10-16) | same |
 | Server certificate | Pinned demo CA, hostname `relay.test` *(from the Build Guide example)* | same |
 | Peer verification | Required; failure is fatal | Required; failure is fatal |
 | Client certificate | None (one-way authentication) *(open)* | None *(open)* |
@@ -189,7 +193,6 @@ throttles to stay under 85 °C ([Raspberry Pi 4](research/raspberry-pi-4.md)) *(
 - Persistent store choice. The Pi services are written in C (team decision, 2026-10-10;
   the advisor has not objected). Pico firmware language is still open.
 - Final queue size, overflow policy, in-flight window and timeouts above.
-- The shared cipher suite for A and B.
 - Whether Pi B authenticates Pi A (mutual TLS). The Build Guide asks for server
   verification only.
 - The IMU ranges, and whether gyro values stay in the record or only acceleration does.
