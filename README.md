@@ -123,7 +123,8 @@ scripts/run_handshake_bench.sh $HOME/opt/openssl-3.5.9 build \
 ```
 
 Results from a development machine are not gate evidence; record them in
-[docs/results.md](docs/results.md) with the platform. Do not commit raw logs from `results/`.
+[docs/results.md](docs/results.md) with the platform. Do not commit raw logs from `results/`. To tidy it, run `scripts/clean_results.sh --keep 3`
+(a dry run; add `--apply` to delete old runs).
 
 ### Requirements for the mandatory system
 
@@ -206,6 +207,7 @@ pqc_drone_link/
 │   ├── tls_handshake_bytes.sh # Handshake bytes for A and B through a counting proxy
 │   ├── proxy_count.py         # Helper: counts TCP payload bytes per direction
 │   ├── run_handshake_bench.sh # Runs the T10 benchmark from a config file; writes CSVs, meta, summary
+│   ├── clean_results.sh       # Deletes old runs from results/ (dry run unless --apply)
 │   ├── summarize_handshakes.py # Median, p95, spread per configuration from the raw CSV
 │   ├── netem_setup.sh         # (planned) packet-loss emulation
 │   ├── power_logger.py        # (planned) current/power sensor logging
