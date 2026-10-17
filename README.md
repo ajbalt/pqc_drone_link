@@ -48,13 +48,20 @@ and every report says so. This is an educational Wi-Fi link, not flight-approved
 
 ## Status of the code in this repo
 
-`src/` holds only the helpers kept from the earlier work: error codes, RNG and secret-wiping
-helpers, a monotonic timer and a CSV event logger, with tests. The earlier custom ML-KEM +
-Ascon stack was **archived**: it is no longer in `main`, but is preserved at tag
-`custom-stack-v1` and branch `archive/custom-stack` (restore with
-`git checkout custom-stack-v1`). The Pico firmware, the Pi services (C17) and the
-hardware files do not exist yet; they are created as gates L1–L10 are reached. The `evidence/` folder exists with
-its rules and a gate-record template.
+**Phase 1 (computers only, per the advisor on 2026-10-16) is working on the `pc-link` branch:** a
+TLS 1.3 client and server (C17, OpenSSL 3.5.9) that run configurations A and B, the wire format,
+TCP helpers, and the T10 handshake benchmark harness. Mandatory failure cases (T03, T04, T09) are
+covered by automated tests on a development machine. This is **not** gate evidence: that needs the
+Pis. What is still missing: a durable store with deduplication (the server's commit step is a stub),
+the persistent queue, outage and loss tests, server-side benchmark costs, and everything on the
+Pico, sensor and display side (Phase 2). Details and next steps: [docs/design_notes.md](docs/design_notes.md).
+
+`src/` also keeps the helpers from the earlier work: error codes, RNG and secret-wiping helpers, a
+monotonic timer and a CSV event logger, with tests. The earlier custom ML-KEM + Ascon stack was
+**archived**: it is not in `main`, but is preserved at tag `custom-stack-v1` and branch
+`archive/custom-stack` (restore with `git checkout custom-stack-v1`). The `evidence/` folder
+exists with its rules and a gate-record template; the Pico firmware and hardware files are
+Phase 2 and do not exist yet.
 
 ## Gates L1–L10
 
@@ -166,7 +173,7 @@ pqc_drone_link/
 │   └── metrics/
 │       ├── timer.h / timer.c  # Monotonic wall time and process CPU time
 │       └── logger.h / logger.c # Buffers events in memory, writes CSV logs
-├── pico/                      # Pico firmware (not started); README lists the jobs and prerequisites
+├── pico/                      # Pico firmware (Phase 2, not started); README lists the jobs and prerequisites
 ├── pi/                        # Services in C17; README lists the programs and what is still to come
 │   ├── tls_server.c           # Phase 1 TLS server: accepts RECORDs, ACKs them (commit is a stub)
 │   └── tls_client.c           # Phase 1 TLS client: sends numbered RECORDs, checks each ACK
@@ -205,7 +212,7 @@ pqc_drone_link/
 │   └── wiki_lint.py           # Health checks for the research wiki
 ├── expected_results.md        # (planned) what a correct run looks like
 ├── analysis/                  # (planned) CSV logs -> tables and charts
-├── results/                   # (planned) raw logs (large ones stored elsewhere)
+├── results/                   # Raw benchmark output from run_handshake_bench.sh (git-ignored, not evidence)
 └── docs/
     ├── research/              # Research wiki: sources, topics, decision pages
     ├── scope.md               # Authoritative project scope (advisor decision, 2026-10-10)
@@ -249,13 +256,15 @@ Decided by the advisor on 2026-10-10 ([docs/advisor_questions.md](docs/advisor_q
 - [x] Pico W or Pico 2 for Phase 2: either is fine, use what is available (2026-10-16)
 - [x] TLS cipher suite shared by configurations A and B: `TLS_AES_128_GCM_SHA256`
       ([docs/telemetry_format.md](docs/telemetry_format.md) section 8, 2026-10-16)
+- [x] Phase 1 test payload: the spec RECORD with a counter and zeroed IMU values; no IMU or OLED
+      simulation (2026-10-16)
 - [x] Phase 1 runs on existing computers, no purchases; Pico W migration only after
       verified encryption, decryption, communication and measurements (2026-10-16)
 
 Still open:
 
-- [ ] Which computers run Phase 1, and what test payload the client sends (no IMU or OLED
-      simulation is needed)
+- [ ] Which computers run Phase 1 for the final measurements (so far one development machine)
+- [ ] Server-side CPU and memory in the T10 benchmark (the harness measures the client only)
 - [ ] Pico firmware language (C SDK or MicroPython). The Pi services are decided: C17
       (team decision 2026-10-10, still to be confirmed with the advisor, Q11)
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?
@@ -265,7 +274,8 @@ Still open:
 - [ ] Queue capacity, overflow policy and test durations (proposed in
       [docs/telemetry_format.md](docs/telemetry_format.md))
 - [ ] Confirm: no rekey, no command channel, one-way server authentication (advisor Q6, Q8)
-- [ ] Reuse the existing timer and logger for evidence CSVs? (advisor Q15)
+- [ ] Reuse the existing logger for evidence CSVs? (advisor Q15). The timer is used; the benchmark
+      writes its own per-attempt CSV because the logger's fixed columns do not fit
 
 Smaller questions from the earlier research (Q1–Q18) are in
 [docs/research/open-questions.md](docs/research/open-questions.md). Many were about the

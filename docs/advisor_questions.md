@@ -46,6 +46,19 @@ course documents describe different designs; see
 | 14 | Given the 28-week plan, can we treat the original 4-week milestones (baseline, ML-KEM, AEAD, rekey/loss) as superseded by gates G0–G8? | **Yes.** L1–L10 in order is mandatory. No Ascon, custom protocol or FPGA work until L1–L10 are completed and approved. |
 | 15 | May we reuse our existing measurement code (timer and CSV logger) for the evidence files, as long as the output matches the required CSV names? | **Not addressed.** Follow-up needed. |
 
+## Follow-up guidance, 2026-10-16
+
+After the first reply, the advisor asked us to implement and test the complete secure link on
+**existing computers first**, with no purchases. Once there is a working implementation with
+verified encryption, decryption, communication and performance measurements, the migration to
+Raspberry Pi Pico W boards will be investigated. Resulting decisions:
+
+- Phase 1 runs on computers; the IMU and OLED are not simulated; the TLS link counts as the
+  communication part. Recorded in [scope.md](scope.md).
+- Either a Pico W or a Pico 2 is acceptable for Phase 2, since availability is limited.
+  This partly answers **Q13** (the platform is no longer fixed to Pi 4B plus Pico 2).
+- Q5, Q6, Q8, Q10, Q11 and Q15 are still unanswered.
+
 ## Still open
 
 Ask these at the next review (the advisor said implementation questions can go to the

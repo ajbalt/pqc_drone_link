@@ -20,8 +20,9 @@ spec and the advisor's approval.
 
 ## Gates and evidence
 
-- Work follows the Build Guide gates **L1–L10 in order**. If an expected physical result
-  is missing, do not advance. Change one variable at a time and keep the failed output.
+- Work follows the Build Guide gates **L1–L10 in order** (except Phase 1 below, where the
+  software parts are built on computers first). If an expected physical result is missing, do
+  not advance a gate. Change one variable at a time and keep the failed output.
 - Each gate needs three files in `evidence/` (rules, naming and the record template are in
   `evidence/README.md`): a dated log showing PASS or FAIL, the exact
   code revision and board IDs, and a photo, logic trace or recording. The instructor

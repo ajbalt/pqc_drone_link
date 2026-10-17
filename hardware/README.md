@@ -1,6 +1,7 @@
 # Hardware
 
-Schematic, pin map, PCB and photos for the physical prototype. The Build Guide requires a KiCad schematic, a
+Schematic, pin map, PCB and photos for the physical prototype. **Phase 2:** hardware work waits until the
+computer-only link is verified (advisor, 2026-10-16); nothing here needs to be bought or built yet. The Build Guide requires a KiCad schematic, a
 carrier/interconnect PCB (or a justified alternative) and an exact cable pinout. See
 [../docs/block_diagram.md](../docs/block_diagram.md) for the diagram and wiring summary.
 

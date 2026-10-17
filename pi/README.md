@@ -24,14 +24,14 @@ the code.
 ## Before writing anything
 
 - Language: **C17** (team decision; advisor confirmation pending, Q11).
-- Gates L1 to L4 (hardware and the plain Wi-Fi diagnostic) come first. L5 and L6 (OpenSSL and hybrid TLS) need
-  OpenSSL 3.5 or newer and a verified `X25519MLKEM768` group on both Pis. See
+- On the Pis, gates L1 to L4 (hardware and the plain Wi-Fi diagnostic) come first. L5 and L6 (OpenSSL and hybrid TLS) need
+  OpenSSL 3.5 or newer and a verified `X25519MLKEM768` group on both Pis (build steps: [../docs/build_openssl.md](../docs/build_openssl.md)). See
   [OpenSSL TLS 1.3 and the hybrid group](../docs/research/openssl-tls13-hybrid.md) and
   [certificates and the Pi clock](../docs/research/certificates-and-time.md).
-- Add `find_package(OpenSSL 3.5 REQUIRED)` to `CMakeLists.txt` when the first service is added, so an older
+- `CMakeLists.txt` already requires OpenSSL 3.5 for the TLS programs (option `PQC_BUILD_TLS`), so an older
   OpenSSL fails the build.
-- Reusable code already in the repo: `src/common/errors.h`, `src/crypto/rng.*`, `src/metrics/timer.*` and
-  `logger.*`. Whether the logger writes the evidence CSVs is advisor question Q15.
+- Reusable code already in the repo: `src/common/errors.h`, `src/proto/wire.*`, `src/tls/tls_link.*`, `src/net/tcp.*`
+  and `src/metrics/timer.*`. Whether the logger writes the evidence CSVs is advisor question Q15.
 
 ## Rules that apply here
 

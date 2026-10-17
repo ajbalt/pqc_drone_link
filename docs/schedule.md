@@ -65,7 +65,9 @@ variable at a time and keep the failed output.
 - **OpenSSL version.** Hybrid groups need 3.5 or newer; Raspberry Pi OS may ship an older
   version. Build or install a pinned version early (L5) and record it. This blocks G2.
 - **Hardware first.** L5 and later must not start before L1–L4 are signed. The existing
-  software modules do not count toward these gates.
+  software modules do not count toward these gates. *Exception (advisor, 2026-10-16):* Phase 1
+  builds and tests the software parts of L5–L10 on computers first. That work is development, not
+  gate evidence: each gate still needs its Pi evidence and the instructor's initials.
 - **Lead times.** Parts and PCBs need approval before purchase. Order the minimum set in W1–2.
 - **SD-card wear and sync cost.** Flushing every record to microSD costs time and wear;
   measure it in L7 before choosing the store.
