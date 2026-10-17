@@ -216,6 +216,18 @@ output in `evidence/`; add packet-loss runs once `tc netem` is set up; decide Q1
 
 ---
 
+## Progress report (LaTeX)
+
+`docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
+design, wire format, verification table and benchmark plots. Plot data comes from
+`prepare_data.py`, which reads the raw `results/*.ok.csv` files and writes `docs/report/data/`,
+including `numbers.tex`, the macros the text uses, so no measurement is typed by hand. It refuses
+to run on non-Release rows. All results in it are labelled preliminary (development computer,
+loopback, not gate evidence). Rebuild after new benchmark runs: run `prepare_data.py`, then
+`latexmk -pdf progress_report.tex` (MiKTeX on Windows works; add `--enable-installer` for packages).
+
+---
+
 ## kem.h and the key-exchange layer (archived)
 
 Removed from `main` on 2026-10-10 with the rest of the custom ML-KEM + Ascon stack. The

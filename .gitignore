@@ -850,3 +850,12 @@ evidence/**/*.mov
 # Raw benchmark output from scripts/run_handshake_bench.sh: not gate evidence; keep it out of git.
 # Summaries go in docs/results.md; real evidence goes in evidence/.
 results/
+
+# LaTeX build output for docs/report (the .tex source, data/ and the finished PDF are committed)
+docs/report/*.aux
+docs/report/*.log
+docs/report/*.out
+docs/report/*.toc
+docs/report/*.fls
+docs/report/*.fdb_latexmk
+docs/report/*.synctex.gz

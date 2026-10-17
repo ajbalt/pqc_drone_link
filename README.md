@@ -226,6 +226,10 @@ pqc_drone_link/
     ├── bom.md                 # Parts, lab equipment, and purchases awaiting approval
     ├── design_notes.md        # Why the code looks the way it does; status and progress log
     ├── threat_model.md        # (planned) What attacks we defend against, and which we don't
+    ├── report/                # LaTeX progress report: diagrams and plots from the raw benchmark CSVs
+    │   ├── progress_report.tex  # Build with latexmk -pdf; every number comes from data/numbers.tex
+    │   ├── prepare_data.py      # Turns results/*.ok.csv into the plot data (standard library only)
+    │   └── data/                # Generated plot data; rerun prepare_data.py to refresh
     └── results.md             # Our own measurements (preliminary dev-machine results so far)
 ```
 
