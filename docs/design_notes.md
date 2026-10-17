@@ -24,7 +24,8 @@ looks the way it does.
 | 2    | Randomness and secret handling | `src/crypto/rng.h`, `rng.c`             | `tests/test_rng.c`  | Done         |
 | 7    | Application wire format (RECORD, ACK) | `src/proto/wire.h/.c`           | `tests/test_wire.c` | Done         |
 | 8    | TLS link wrapper (OpenSSL, pinned group and suite) | `src/tls/tls_link.h/.c` | `tests/test_tls_link.c` | Done |
-| 9    | TLS server and client programs | `pi/tls_server.c`, `pi/tls_client.c` | — | Next |
+| 9    | TCP helpers, TLS server and client programs | `src/net/tcp.h/.c`, `pi/tls_server.c`, `pi/tls_client.c` | `tests/test_tcp.c`, `tests/e2e_tls_link.sh` | Done |
+| 10   | Durable store: commit, dedup, persistent queue | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Pi services, Pico firmware and the evidence folder are not started; they follow the gates
@@ -149,6 +150,35 @@ because TLS returns whatever has arrived; every call clears OpenSSL's error queu
 
 **Follow-ups.** The server's commit hook is a stub until the store exists (rule 15). T09 is
 covered here by raw bytes on a socketpair; repeat it through a proxy on the real link.
+
+---
+
+## tcp.h, tls_server and tls_client: the Phase 1 link
+
+**What it is.** `tcp.c` holds the socket code both programs share. `tls_server` and `tls_client`
+(in `pi/`) use `tls_link` and `wire` to send numbered RECORDs and check each ACK on one machine.
+
+**Design choices**
+
+- **The commit step is a stub.** `commit_record()` stores nothing, so an ACK is not yet a durable
+  commit (rule 15). The server warns on startup. The store module replaces it.
+- **Stop-and-wait.** One record in flight; the window of 32 comes with the persistent queue.
+- **IPv4 literals for `--host` and `--bind`.** The certificate name is checked by TLS
+  (`--hostname`), not by DNS.
+- **`--port 0` and `--max-conns N`** let the end-to-end script start a server on a free port and
+  have it stop by itself.
+- **The server closes the connection** on an unknown type, bad length, `seq` 0 or unknown node.
+- **No retry and no fallback in the client.** Any failure ends the run with a non-zero exit code.
+
+**What to notice.** The server checks a header's length before reading the payload; `TCP_NODELAY`
+keeps 12-36 byte messages from being batched; the client frees everything through one `goto done`
+path; the end-to-end script checks that a failing case never prints `connected` on the server, so a
+test cannot pass for the wrong reason.
+
+**Follow-ups.** Replace `commit_record()` with a durable store and deduplication (T05); add the
+persistent queue and the window of 32 on the client (T06-T08); the benchmark harness (T10) and the
+loss emulation (`tc netem`) are separate modules; T09 here is raw bytes on a socketpair, repeat it
+through a proxy on the real link.
 
 ---
 
@@ -317,3 +347,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-16 | Advisor replied: implement and test the complete link on existing computers, no purchases; Pico W migration after verified encryption, decryption, communication and measurements. Recorded as Phase 1 / Phase 2 in `docs/scope.md`, README, `schedule.md`, `bom.md`, CONTRIBUTING. Follow-up: Pico W or Pico 2 both fine; IMU and OLED need not be simulated in Phase 1. Hardware gates deferred. No code changed |
 | 2026-10-16 | `wire` module (RECORD/ACK encode, header check, decode) verified, typed in and tested. Cipher suite decided: `TLS_AES_128_GCM_SHA256`. Next: `tls_link` |
 | 2026-10-16 | `tls_link` module (pinned TLS 1.3 client/server wrapper) verified, typed in and tested: A, B, T02, T03, T04, T09 and timeout over a socketpair. `ctest` 6/6. Next: `tls_server` and `tls_client` programs |
+| 2026-10-17 | `tcp`, `tls_server` and `tls_client` typed in and tested. First end-to-end run on one machine: A and B succeed, T03 and T04 fail closed, as real processes. `ctest` 8/8. Commit step is a stub. Next: durable store, dedup and ACK-after-commit |

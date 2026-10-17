@@ -66,6 +66,14 @@ else()
   message(STATUS "Doxygen not found; 'docs' target unavailable")
 endif()
 
+# Blocking IPv4 TCP helpers
+add_library(pqc_net STATIC src/net/tcp.c)
+target_link_libraries(pqc_net PUBLIC pqc_common PRIVATE project_warnings)
+
+add_executable(test_tcp tests/test_tcp.c)
+target_link_libraries(test_tcp PRIVATE pqc_net project_warnings)
+add_test(NAME test_tcp COMMAND test_tcp)
+
 # TLS link (OpenSSL 3.5+). Point CMake at the pinned build with
 # -DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9 (docs/build_openssl.md).
 option(PQC_BUILD_TLS "Build the TLS link and its tests (needs OpenSSL 3.5+)" ON)
@@ -73,6 +81,16 @@ if(PQC_BUILD_TLS)
   find_package(OpenSSL 3.5 REQUIRED)
   add_library(pqc_tls STATIC src/tls/tls_link.c)
   target_link_libraries(pqc_tls PUBLIC pqc_common OpenSSL::SSL PRIVATE project_warnings)
+
+  # Phase 1 programs and their end-to-end test (real processes over loopback)
+  add_executable(tls_server pi/tls_server.c)
+  target_link_libraries(tls_server PRIVATE pqc_tls pqc_net pqc_proto project_warnings)
+  add_executable(tls_client pi/tls_client.c)
+  target_link_libraries(tls_client PRIVATE pqc_tls pqc_net pqc_proto pqc_metrics project_warnings)
+  add_test(NAME e2e_tls_link
+           COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e_tls_link.sh $<TARGET_FILE:tls_server>
+                   $<TARGET_FILE:tls_client> ${CMAKE_BINARY_DIR}/certs/main ${CMAKE_BINARY_DIR}/certs/other)
+  set_tests_properties(e2e_tls_link PROPERTIES FIXTURE_REQUIRED tls_certs)
 
   # The tests need demo certificates (two CAs). Generate them with the same
   # openssl binary that the library came from.

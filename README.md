@@ -91,6 +91,20 @@ ctest --test-dir build --output-on-failure
   "Could NOT find OpenSSL"; to build everything else, add `-DPQC_BUILD_TLS=OFF`.
 - Benchmarks and experiments must use `Release` builds. Debug numbers are never reported.
 
+### Running the Phase 1 link by hand
+
+After building, make demo certificates with the same OpenSSL (keys stay out of git):
+
+```sh
+P=$HOME/opt/openssl-3.5.9
+LD_LIBRARY_PATH=$P/lib scripts/make_demo_certs.sh $P/bin/openssl /tmp/demo_certs
+build/tls_server --config B --port 5000 --cert /tmp/demo_certs/srv.crt --key /tmp/demo_certs/srv.key &
+build/tls_client --config B --host 127.0.0.1 --port 5000 --ca /tmp/demo_certs/ca.crt --count 10
+```
+
+`--config A` pins X25519 and `--config B` pins `X25519MLKEM768`; both sides must use the
+same one. The server's commit step is a stub, so its ACK does not yet mean "stored".
+
 ### Requirements for the mandatory system
 
 - Raspberry Pi 4B (4 GB) x2 with a 64-bit OS, Raspberry Pi Pico 2 x2, MPU-6050, an SSD1306
@@ -127,6 +141,9 @@ pqc_drone_link/
 │   ├── proto/
 │   │   ├── wire.h             # RECORD and ACK messages (encode, header check, decode)
 │   │   └── wire.c
+│   ├── net/
+│   │   ├── tcp.h              # Blocking IPv4 TCP helpers (listen, accept, connect, timeouts)
+│   │   └── tcp.c
 │   ├── tls/
 │   │   ├── tls_link.h         # TLS 1.3 client/server: pinned group and suite, verified peer
 │   │   └── tls_link.c
@@ -137,7 +154,9 @@ pqc_drone_link/
 │       ├── timer.h / timer.c  # Monotonic wall time and process CPU time
 │       └── logger.h / logger.c # Buffers events in memory, writes CSV logs
 ├── pico/                      # Pico firmware (not started); README lists the jobs and prerequisites
-├── pi/                        # Pi services in C17 (not started); README lists the programs and prerequisites
+├── pi/                        # Services in C17; README lists the programs and what is still to come
+│   ├── tls_server.c           # Phase 1 TLS server: accepts RECORDs, ACKs them (commit is a stub)
+│   └── tls_client.c           # Phase 1 TLS client: sends numbered RECORDs, checks each ACK
 ├── hardware/                  # Wiring and boards
 │   ├── README.md              # Rules and file states
 │   └── pin_map.csv            # Draft pin map by physical header pin (not yet verified on the bench)
@@ -150,6 +169,8 @@ pqc_drone_link/
 │   ├── test_metrics.c         # timer.c and logger.c
 │   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
 │   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09 over a socketpair
+│   ├── test_tcp.c             # tcp.c on loopback
+│   ├── e2e_tls_link.sh        # tls_server + tls_client as real processes: A, B, T03, T04
 │   ├── positive_and_attack_tests.csv  # T01-T10 results (header only so far)
 │   └── fault_injection.csv    # Outage, restart and loss results (header only so far)
 ├── experiments/

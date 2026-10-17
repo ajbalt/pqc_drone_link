@@ -1,6 +1,16 @@
 # Pi services
 
-Not started. This folder will hold the C17 programs that run on the two Raspberry Pi 4 boards:
+## Phase 1 (done on a computer, 2026-10-17)
+
+`tls_server.c` and `tls_client.c` run the TLS link on one machine: the client sends numbered
+RECORDs (IMU values zero), the server ACKs each one. `--config A` pins X25519, `--config B` pins
+`X25519MLKEM768`. The server's commit step is a **stub**, so its ACK is not yet a durable commit
+(rule 15). Usage is in the file headers and the README. `tests/e2e_tls_link.sh` runs both as real
+processes through A, B, T03 and T04.
+
+## Still to do (full system)
+
+This folder will also hold the C17 programs that run on the two Raspberry Pi 4 boards:
 
 | Node | Program | What it does |
 |------|---------|--------------|
