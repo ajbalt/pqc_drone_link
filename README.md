@@ -48,7 +48,7 @@ and every report says so. This is an educational Wi-Fi link, not flight-approved
 
 ## Status of the code in this repo
 
-**Phase 1 (computers only, per the advisor on 2026-10-16) is working on the `pc-link` branch:** a
+**Phase 1 (computers only, per the advisor on 2026-10-16) is working on `main` (merged from `pc-link`, PR #2):** a
 TLS 1.3 client and server (C17, OpenSSL 3.5.9) that run configurations A and B, the wire format,
 TCP helpers, and the T10 handshake benchmark harness. Mandatory failure cases (T03, T04, T09) are
 covered by automated tests on a development machine. This is **not** gate evidence: that needs the

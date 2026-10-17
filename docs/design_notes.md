@@ -29,8 +29,8 @@ looks the way it does.
 | 11   | Durable store: commit, dedup, persistent queue | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
-Phase 1 (computers only, advisor 2026-10-16) is implemented through step 10 below on the `pc-link`
-branch. The Pico firmware (Phase 2) and the hardware gates in [schedule.md](schedule.md) are not
+Phase 1 (computers only, advisor 2026-10-16) is implemented through step 10 below on `main`.
+The Pico firmware (Phase 2) and the hardware gates in [schedule.md](schedule.md) are not
 started.
 
 ### Files added beyond the original layout
