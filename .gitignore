@@ -846,3 +846,7 @@ private/
 # SHA-256 (see evidence/README.md).
 evidence/**/*.mp4
 evidence/**/*.mov
+
+# Raw benchmark output from scripts/run_handshake_bench.sh: not gate evidence; keep it out of git.
+# Summaries go in docs/results.md; real evidence goes in evidence/.
+results/
