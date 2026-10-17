@@ -25,7 +25,8 @@ looks the way it does.
 | 7    | Application wire format (RECORD, ACK) | `src/proto/wire.h/.c`           | `tests/test_wire.c` | Done         |
 | 8    | TLS link wrapper (OpenSSL, pinned group and suite) | `src/tls/tls_link.h/.c` | `tests/test_tls_link.c` | Done |
 | 9    | TCP helpers, TLS server and client programs | `src/net/tcp.h/.c`, `pi/tls_server.c`, `pi/tls_client.c` | `tests/test_tcp.c`, `tests/e2e_tls_link.sh` | Done |
-| 10   | Durable store: commit, dedup, persistent queue | (not started) | — | Next |
+| 10   | T10 handshake benchmark harness | `experiments/bench_handshake.c`, `scripts/run_handshake_bench.sh`, `scripts/summarize_handshakes.py` | `tests/e2e_bench.sh`, `tests/test_summarize.py` | Done (client side) |
+| 11   | Durable store: commit, dedup, persistent queue | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Pi services, Pico firmware and the evidence folder are not started; they follow the gates
@@ -182,6 +183,38 @@ through a proxy on the real link.
 
 ---
 
+## The T10 handshake benchmark harness
+
+**What it is.** `bench_handshake` makes many full TLS handshakes against two servers (A and B),
+alternating between them, and writes one CSV row per attempt. `summarize_handshakes.py` turns the
+raw CSV into median, p95 and spread. `run_handshake_bench.sh` reads an experiment config, starts
+both servers, runs the harness and records the environment (commit, OpenSSL, config hash, CPU
+temperature and frequency where available).
+
+**Design choices**
+
+- **Interleaved A and B**, so drift in load or temperature affects both equally (rule 14).
+- **Warm-up excluded;** failures go to a separate file and are never in the statistics.
+- **Nothing is written inside a timed region.** Rows are kept in memory and written at the end.
+- **Bytes from OpenSSL's socket counters** (`tls_conn_bytes`): exact for the TLS stream, without
+  TCP/IP headers. Cross-check: B minus A is +1176 B sent and +1088 B received, exactly the ML-KEM-768
+  key and ciphertext sizes.
+- **Memory = heap held by the open connection** (`mallinfo2`), plus the process peak RSS once per run.
+  The transient peak inside the handshake is not captured.
+- **Own CSV writer, not `logger.c`**, because the per-attempt columns do not fit the logger (advisor
+  question Q15 is still open).
+- **Debug builds are refused** (no `NDEBUG`), and existing result files are never overwritten.
+
+**What to notice.** `wait_for_close()` keeps the previous connection's cleanup out of the next
+attempt's latency; `fopen(..., "wx")` makes "never overwrite" an OS guarantee; percentiles are
+nearest-rank and unit-tested on `1..100`.
+
+**Follow-ups.** Measure server-side CPU and memory (T10 asks for both ends of the cost); take packet
+captures for byte totals with headers on the real link; run on the Pis with board IDs and put the
+output in `evidence/`; add packet-loss runs once `tc netem` is set up; decide Q15 (logger reuse).
+
+---
+
 ## kem.h and the key-exchange layer (archived)
 
 Removed from `main` on 2026-10-10 with the rest of the custom ML-KEM + Ascon stack. The
@@ -300,6 +333,9 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Config A handshake rejected as a policy violation while B works | OpenSSL names the classical group x25519 in lowercase but the hybrid X25519MLKEM768 | Compare group names with strcasecmp; the test checks both |
 | Doxygen: `Compound tls_conn is not documented` | Opaque struct defined in the `.c` file has no `/** @brief */` | Run the docs target before showing a draft |
 | Tests fail with 'cannot open' or every TLS case fails | Cert script run without `LD_LIBRARY_PATH` for the private OpenSSL, so no certificates were made | CMake runs the script with `LD_LIBRARY_PATH` set |
+| Tests pass locally but a fresh build fails with "server did not start" | CTest properties are `FIXTURES_SETUP` and `FIXTURES_REQUIRED` (plural); singular names are silently ignored, so only definition order made it work | Test from an empty build directory |
+| `bash: tests/e2e_bench.sh: No such file or directory` | File saved as `tests/ e2e_bench.sh` (leading space) | `ls -b tests` shows the escaped name |
+| `Permission denied` running a script | Typed-in files get mode 0644 | `chmod +x`, as `make_demo_certs.sh` has in git |
 | git diff shows "No newline at end of file" | Editor not adding a final newline | Editor setting + `clang-format -i` before committing |
 
 **Reading an "undefined reference" error:** the compiler only checks that
@@ -348,3 +384,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-16 | `wire` module (RECORD/ACK encode, header check, decode) verified, typed in and tested. Cipher suite decided: `TLS_AES_128_GCM_SHA256`. Next: `tls_link` |
 | 2026-10-16 | `tls_link` module (pinned TLS 1.3 client/server wrapper) verified, typed in and tested: A, B, T02, T03, T04, T09 and timeout over a socketpair. `ctest` 6/6. Next: `tls_server` and `tls_client` programs |
 | 2026-10-17 | `tcp`, `tls_server` and `tls_client` typed in and tested. First end-to-end run on one machine: A and B succeed, T03 and T04 fail closed, as real processes. `ctest` 8/8. Commit step is a stub. Next: durable store, dedup and ACK-after-commit |
+| 2026-10-17 | T10 handshake benchmark harness typed in and tested: `bench_handshake`, `run_handshake_bench.sh`, `summarize_handshakes.py`, `tls_conn_bytes`. Fixed the CTest fixture property names (plural). First full run on this machine produced CSVs, meta and summary in `results/` (dev machine, not evidence). `ctest` 10/10 |

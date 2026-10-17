@@ -138,6 +138,19 @@ int tls_write_all(struct tls_conn *conn, const uint8_t *buf, size_t len);
 int tls_read_exact(struct tls_conn *conn, uint8_t *buf, size_t len);
 
 /**
+ * @brief Bytes this connection has read and written on its socket so far.
+ * @param[in]  conn  Open connection.
+ * @param[out] rx    Bytes received (TLS records as they travel on the wire).
+ * @param[out] tx    Bytes sent.
+ * @return PQC_OK, PQC_ERR_INVALID_ARG (NULL), PQC_ERR_TLS_INIT (no socket BIO).
+ * @note Counts the TLS byte stream, not TCP/IP headers or ACK-only packets.
+ * Read straight after the handshake it gives the handshake byte overhead (test
+ * T10) as seen by this end. A packet capture is still needed for totals with
+ * TCP/IP headers.
+ */
+int tls_conn_bytes(const struct tls_conn *conn, uint64_t *rx, uint64_t *tx);
+
+/**
  * @brief Negotiated key-exchange group, for logs (test T02).
  * @param[in] conn  Open connection.
  * @return Group name such as "X25519MLKEM768", valid until tls_conn_free().

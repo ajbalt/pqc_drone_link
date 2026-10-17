@@ -184,6 +184,18 @@ of 10 minutes each, repeated 10 times. Confirm counts with the advisor.
 - **Application telemetry.** Goodput, sensor-to-display latency, queue occupancy and drain
   time come from the live record flow and are stored in other files.
 
+**How the harness measures it (Phase 1, `experiments/bench_handshake.c`).**
+Configurations A and B are interleaved (A, B, A, B, ...) so drift hits both equally; the first
+5 successes per configuration are warm-up and excluded; contexts are built once before timing, and
+tickets and resumption are off so every attempt is a full handshake. Per attempt, on the client
+side only: both latencies above; client CPU time over the connect-to-handshake span; handshake
+bytes sent and received as counted by OpenSSL on the socket (the TLS byte stream, exact, without
+TCP/IP headers; a packet capture is still needed for totals with headers); and `heap_delta_bytes`,
+the live heap held by the open connection (`mallinfo2()`). The transient peak inside the handshake
+is not captured per attempt; the process peak RSS is printed once per run. Server-side CPU and
+memory are not measured yet. Percentiles are nearest-rank. Successes go to `*.ok.csv`, failures to
+`*.fail.csv`, and a run with fewer than 100 measured successes is marked INSUFFICIENT.
+
 Handshake numbers never come from a run that was also carrying telemetry unless the report
 says so. Each benchmark run also records the Pi's CPU temperature and clock frequency, because the Pi 4
 throttles to stay under 85 °C ([Raspberry Pi 4](research/raspberry-pi-4.md)) *(proposed)*.

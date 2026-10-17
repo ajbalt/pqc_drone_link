@@ -105,6 +105,19 @@ build/tls_client --config B --host 127.0.0.1 --port 5000 --ca /tmp/demo_certs/ca
 `--config A` pins X25519 and `--config B` pins `X25519MLKEM768`; both sides must use the
 same one. The server's commit step is a stub, so its ACK does not yet mean "stored".
 
+### Running the handshake benchmark (T10)
+
+Needs a **Release** build. It starts a configuration-A and a configuration-B server on this machine,
+alternates handshakes between them, and writes the raw CSVs, an environment record and a summary:
+
+```sh
+scripts/run_handshake_bench.sh $HOME/opt/openssl-3.5.9 build \
+    experiments/configs/t10_handshake_loopback.conf results/
+```
+
+Results from a development machine are not gate evidence; record them in
+[docs/results.md](docs/results.md) with the platform. Do not commit raw logs from `results/`.
+
 ### Requirements for the mandatory system
 
 - Raspberry Pi 4B (4 GB) x2 with a 64-bit OS, Raspberry Pi Pico 2 x2, MPU-6050, an SSD1306
@@ -171,16 +184,22 @@ pqc_drone_link/
 │   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09 over a socketpair
 │   ├── test_tcp.c             # tcp.c on loopback
 │   ├── e2e_tls_link.sh        # tls_server + tls_client as real processes: A, B, T03, T04
+│   ├── e2e_bench.sh           # bench_handshake smoke test and failure paths
+│   ├── test_summarize.py      # summarize_handshakes.py: percentiles, warm-up exclusion
 │   ├── positive_and_attack_tests.csv  # T01-T10 results (header only so far)
 │   └── fault_injection.csv    # Outage, restart and loss results (header only so far)
 ├── experiments/
-│   └── configs/               # One file per experiment; README lists the fields (no runner yet)
+│   ├── bench_handshake.c      # T10 client: many timed handshakes, A and B interleaved
+│   └── configs/               # One file per experiment; README lists the fields
+│       └── t10_handshake_loopback.conf  # Handshake benchmark on one machine
 ├── scripts/
 │   ├── run_demo.sh            # (planned) assemble-and-run for another student
 │   ├── make_demo_certs.sh     # Demo CA and server certificate (backdated 1 day, 30 days)
 │   ├── tls_group_matrix.sh    # Config A/B, T03 and T04 cases on loopback (bring-up check)
 │   ├── tls_handshake_bytes.sh # Handshake bytes for A and B through a counting proxy
 │   ├── proxy_count.py         # Helper: counts TCP payload bytes per direction
+│   ├── run_handshake_bench.sh # Runs the T10 benchmark from a config file; writes CSVs, meta, summary
+│   ├── summarize_handshakes.py # Median, p95, spread per configuration from the raw CSV
 │   ├── netem_setup.sh         # (planned) packet-loss emulation
 │   ├── power_logger.py        # (planned) current/power sensor logging
 │   └── wiki_lint.py           # Health checks for the research wiki

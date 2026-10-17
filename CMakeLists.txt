@@ -90,7 +90,7 @@ if(PQC_BUILD_TLS)
   add_test(NAME e2e_tls_link
            COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e_tls_link.sh $<TARGET_FILE:tls_server>
                    $<TARGET_FILE:tls_client> ${CMAKE_BINARY_DIR}/certs/main ${CMAKE_BINARY_DIR}/certs/other)
-  set_tests_properties(e2e_tls_link PROPERTIES FIXTURE_REQUIRED tls_certs)
+  set_tests_properties(e2e_tls_link PROPERTIES FIXTURES_REQUIRED tls_certs)
 
   # The tests need demo certificates (two CAs). Generate them with the same
   # openssl binary that the library came from.
@@ -102,12 +102,26 @@ if(PQC_BUILD_TLS)
       COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${PQC_OPENSSL_LIBDIR}
               bash ${CMAKE_SOURCE_DIR}/scripts/make_demo_certs.sh
               ${PQC_OPENSSL_BIN} ${CMAKE_BINARY_DIR}/certs/${name})
-    set_tests_properties(tls_demo_certs_${name} PROPERTIES FIXTURE_SETUP tls_certs)
+    set_tests_properties(tls_demo_certs_${name} PROPERTIES FIXTURES_SETUP tls_certs)
   endforeach()
 
   add_executable(test_tls_link tests/test_tls_link.c)
   target_link_libraries(test_tls_link PRIVATE pqc_tls pqc_proto project_warnings)
   add_test(NAME test_tls_link
            COMMAND test_tls_link ${CMAKE_BINARY_DIR}/certs/main ${CMAKE_BINARY_DIR}/certs/other)
-  set_tests_properties(test_tls_link PROPERTIES FIXTURE_REQUIRED tls_certs)
+  set_tests_properties(test_tls_link PROPERTIES FIXTURES_REQUIRED tls_certs)
+
+  # T10 handshake benchmark client, with a smoke test against real servers
+  add_executable(bench_handshake experiments/bench_handshake.c)
+  target_link_libraries(bench_handshake PRIVATE pqc_tls pqc_net pqc_metrics project_warnings)
+  add_test(NAME e2e_bench
+           COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e_bench.sh $<TARGET_FILE:tls_server>
+                   $<TARGET_FILE:bench_handshake> ${CMAKE_SOURCE_DIR}/scripts/summarize_handshakes.py
+                   ${CMAKE_BINARY_DIR}/certs/main)
+  set_tests_properties(e2e_bench PROPERTIES FIXTURES_REQUIRED tls_certs)
+endif()
+
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+  add_test(NAME test_summarize COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tests/test_summarize.py)
 endif()

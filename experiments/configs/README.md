@@ -1,8 +1,9 @@
 # Experiment configs
 
 One file per experiment. **Never change an experiment by editing code**; change or add a config.
-No runner exists yet (`scripts/run_demo.sh` and the experiment scripts are planned), so the file format below is a
-proposal *(proposed)*: plain `key=value` lines.
+The handshake benchmark runner (`scripts/run_handshake_bench.sh`) reads this format, plain `key=value` lines, from
+`t10_handshake_loopback.conf`. The other experiment runners (`scripts/run_demo.sh`, loss and outage runs) are still planned,
+so fields they need are *(proposed)*.
 
 ## Fields
 
@@ -20,6 +21,14 @@ proposal *(proposed)*: plain `key=value` lines.
 | `duration_s` | Test length |
 | `outage_s` | Wi-Fi outage length, 60 for T06 |
 | `seed` | Random seed, where one is used |
+| `name` | Label for the run; the runner adds a UTC timestamp |
+| `configs` | Which configurations run, e.g. `A,B` (interleaved) |
+| `group_A`, `group_B` | Expected group strings, recorded for the reader; the code fixes them |
+| `hostname` | Name the server certificate must match |
+| `warmup` | Successes per configuration run first and excluded from statistics |
+| `max_attempts` | Hard cap on attempts so a broken setup cannot loop forever |
+| `timeout_ms` | Connect, send and receive timeout |
+| `interval_ms` | Pause between attempts (0 = none) |
 
 ## Recorded with every run (not part of the config)
 

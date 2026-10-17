@@ -68,6 +68,8 @@ struct result {
   int server_exit; /**< server process exit code */
   char group[32];  /**< group the client saw (empty if no handshake) */
   char cipher[48]; /**< cipher suite the client saw */
+  uint64_t rx;     /**< bytes the client received before any record */
+  uint64_t tx;     /**< bytes the client sent before any record */
 };
 
 /** @brief Build "<dir>/<name>" into @p out; return 0 on success. */
@@ -202,6 +204,10 @@ static struct result run_scenario(const struct scenario *sc) {
     if (res.client_rc == PQC_OK) {
       snprintf(res.group, sizeof(res.group), "%s", tls_conn_group(conn));
       snprintf(res.cipher, sizeof(res.cipher), "%s", tls_conn_cipher(conn));
+      /* Read straight after the handshake: this is the handshake overhead. */
+      if (tls_conn_bytes(conn, &res.rx, &res.tx) != PQC_OK) {
+        res.rx = res.tx = 0;
+      }
       if (sc->mode == SERVE_ECHO) {
         res.client_rc = client_echo(conn);
       } else if (sc->mode == SERVE_TAMPER) {
@@ -243,6 +249,8 @@ static void test_configurations(void) {
   CHECK(r.server_exit == EXIT_SERVED);
   CHECK(strcasecmp(r.group, "X25519") == 0); /* OpenSSL says "x25519" */
   CHECK(strcmp(r.cipher, TLS_CIPHER_SUITE) == 0);
+  uint64_t a_rx = r.rx, a_tx = r.tx;
+  CHECK(a_rx > 0 && a_tx > 0);
 
   struct scenario b = a;
   b.client_group = TLS_GROUP_HYBRID;
@@ -252,6 +260,11 @@ static void test_configurations(void) {
   CHECK(r.server_exit == EXIT_SERVED);
   CHECK(strcmp(r.group, "X25519MLKEM768") == 0);
   CHECK(strcmp(r.cipher, TLS_CIPHER_SUITE) == 0);
+  /* The hybrid handshake carries an ML-KEM-768 public key (1184 B) one way and
+   * a ciphertext (1088 B) the other, so it must be well over 1000 B larger in
+   * each direction than the classical one. */
+  CHECK(r.tx > a_tx + 1000);
+  CHECK(r.rx > a_rx + 1000);
 }
 
 /** @brief A group mismatch fails on both sides, in both directions (T04). */
@@ -365,6 +378,8 @@ static void test_bad_input(void) {
   uint8_t b[4];
   CHECK(tls_write_all(NULL, b, sizeof(b)) == PQC_ERR_INVALID_ARG);
   CHECK(tls_read_exact(NULL, b, sizeof(b)) == PQC_ERR_INVALID_ARG);
+  uint64_t n = 0;
+  CHECK(tls_conn_bytes(NULL, &n, &n) == PQC_ERR_INVALID_ARG);
   CHECK(tls_conn_group(NULL) == NULL);
   CHECK(tls_conn_cipher(NULL) == NULL);
   tls_conn_free(NULL);

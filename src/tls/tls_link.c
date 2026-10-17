@@ -10,6 +10,7 @@
 #include "tls/tls_link.h"
 
 #include <errno.h>
+#include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -292,6 +293,23 @@ int tls_read_exact(struct tls_conn *conn, uint8_t *buf, size_t len) {
     }
     done += n;
   }
+  return PQC_OK;
+}
+
+int tls_conn_bytes(const struct tls_conn *conn, uint64_t *rx, uint64_t *tx) {
+  if (conn == NULL || rx == NULL || tx == NULL) {
+    return PQC_ERR_INVALID_ARG;
+  }
+  /* SSL_set_fd() gave the connection one socket BIO for both directions. Every
+   * byte that passes through a BIO is counted by OpenSSL itself, so these
+   * are exact, not estimates. */
+  BIO *in = SSL_get_rbio(conn->ssl);
+  BIO *out = SSL_get_wbio(conn->ssl);
+  if (in == NULL || out == NULL) {
+    return PQC_ERR_TLS_INIT;
+  }
+  *rx = BIO_number_read(in);
+  *tx = BIO_number_written(out);
   return PQC_OK;
 }
 
