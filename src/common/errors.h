@@ -97,6 +97,14 @@ enum pqc_err {
                                   pinned one. Always fatal: no downgrade */
   PQC_ERR_TLS_CLOSED = -93,    /**< peer closed the connection cleanly */
 
+  /* Durable record store, store.c (-100 .. -109). Read and write failures
+   * use PQC_ERR_IO. */
+  PQC_ERR_STORE_CORRUPT = -100, /**< the file is not a store, or a record
+                                   before the last one is damaged; nothing is
+                                   repaired, a person must look */
+  PQC_ERR_STORE_FULL = -101,    /**< max_records reached; the new record is
+                                   rejected and must not be ACKed */
+
 };
 
 #endif /* PQC_ERRORS_H */

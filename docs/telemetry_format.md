@@ -109,12 +109,22 @@ The application sends length-prefixed messages inside the TLS stream. Big-endian
 - Pi B's store has a unique key on (`node`, `seq`). A new key inserts the record and
   returns "new"; an existing key returns "duplicate".
 - Only a **new** insert changes the OLED unique-record count and the latest-sample display.
-  The count is `SELECT COUNT(*)`, not a running variable, so a reboot cannot change it.
+  The count is the number of records in the store, rebuilt from the file at every start,
+  not a saved variable, so a reboot cannot change it.
 - The ACK is sent only after the insert has been flushed to disk, and Pi B pushes the
   current count to Pico B at startup, so the display recovers after a reboot.
 - A replayed record from an attacker with a valid TLS session is deduplicated the same way
   (test T05). A replay on the wire is rejected by TLS itself.
 - Gaps in `seq` are allowed (for example from queue overflow), and are reported, not hidden.
+- **How (decided 2026-10-17, `src/store/store.h`):** an append-only file. An 8-byte header
+  `PQCSTOR1`, then one 40-byte entry per unique record: the 36-byte RECORD message of section 4
+  (header included, big-endian) followed by a big-endian CRC-32 (IEEE 802.3, as zlib) of those 36
+  bytes. Each entry is `fsync()`ed before the ACK. On start the file is read back to rebuild the
+  dedup index and the count. A short or bad-CRC **last** entry is a write cut short by a crash and
+  is cut off (it was never ACKed). Damage before the last entry, a repeated `node`+`seq`, or a file
+  without the header stops the server and the file is left untouched.
+- When the store is full, a duplicate is still ACKed again; a new record is rejected, counted and
+  not ACKed.
 
 ## 7. Persistent queue and capacity
 
@@ -123,7 +133,7 @@ The application sends length-prefixed messages inside the TLS stream. Big-endian
 | Sample rate | 10 Hz | Build Guide gate L2 |
 | Queue capacity | 10,000 records *(proposed)* | About 1,000 s of data, over 16 times a 60 s outage (600 records). About 330 kB of payload, so far below any microSD limit |
 | Overflow policy | Reject **new** records and count them *(proposed)* | Never discard a record already promised durable. The count is reported as a number |
-| Store | Open: SQLite in WAL mode with full sync, or an append-only file with `fsync` | Must survive a power cut mid-write. Decide in L7 |
+| Store | Append-only file with `fsync` per record, CRC-32 per entry (decided 2026-10-17, section 6) | Survives a power cut mid-write: only the last entry can be torn, and it was never ACKed. Per-record fsync cost on microSD still to be measured in L7 |
 
 Each reliability test records: queue capacity, sample rate, test duration, number of
 records accepted by Pi A, number delivered and ACKed, peak queue depth, overflow count and
@@ -202,8 +212,10 @@ throttles to stay under 85 °C ([Raspberry Pi 4](research/raspberry-pi-4.md)) *(
 
 ## 11. Open points
 
-- Persistent store choice. The Pi services are written in C (team decision, 2026-10-10;
-  the advisor has not objected). Pico firmware language is still open.
+- The Pi services are written in C (team decision, 2026-10-10; the advisor has not
+  objected). Pico firmware language is still open. The persistent store was decided on
+  2026-10-17 (section 6).
+- Pi B's store capacity (`max_records`); the queue capacity in section 7 is for Pi A.
 - Final queue size, overflow policy, in-flight window and timeouts above.
 - Whether Pi B authenticates Pi A (mutual TLS). The Build Guide asks for server
   verification only.

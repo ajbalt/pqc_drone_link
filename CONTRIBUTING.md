@@ -121,6 +121,9 @@ mandatory system.
 - Sequence numbers are 64-bit, per node, start at 1, and never reset or reuse a value.
 - Every value on a wire or in a file has a documented size, byte order and unit.
 - Link and queue sizes are config values, never hard-coded.
+- Durable files (Pi B's store, Pi A's queue) are append-only. On start, only a torn or bad-CRC
+  **last** entry may be cut off; any other damage stops the program and the file is left as it
+  is. Never delete or rewrite a damaged store or queue file to make an error go away.
 
 ## Memory and timing rules
 

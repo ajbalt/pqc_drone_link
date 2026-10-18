@@ -52,8 +52,8 @@ and every report says so. This is an educational Wi-Fi link, not flight-approved
 TLS 1.3 client and server (C17, OpenSSL 3.5.9) that run configurations A and B, the wire format,
 TCP helpers, and the T10 handshake benchmark harness. Mandatory failure cases (T03, T04, T09) are
 covered by automated tests on a development machine. This is **not** gate evidence: that needs the
-Pis. What is still missing: a durable store with deduplication (the server's commit step is a stub),
-the persistent queue, outage and loss tests, server-side benchmark costs, and everything on the
+Pis. A durable record store with deduplication exists (`src/store/`, tested) but the server does
+not use it yet, so its commit step is still a stub. Also missing: the persistent queue, outage and loss tests, server-side benchmark costs, and everything on the
 Pico, sensor and display side (Phase 2). Details and next steps: [docs/design_notes.md](docs/design_notes.md).
 
 `src/` also keeps the helpers from the earlier work: error codes, RNG and secret-wiping helpers, a
@@ -165,6 +165,9 @@ pqc_drone_link/
 │   ├── net/
 │   │   ├── tcp.h              # Blocking IPv4 TCP helpers (listen, accept, connect, timeouts)
 │   │   └── tcp.c
+│   ├── store/
+│   │   ├── store.h            # Pi B durable store: append-only file + fsync, dedup by node+seq
+│   │   └── store.c
 │   ├── tls/
 │   │   ├── tls_link.h         # TLS 1.3 client/server: pinned group and suite, verified peer
 │   │   └── tls_link.c
@@ -189,6 +192,7 @@ pqc_drone_link/
 │   ├── test_rng.c             # rng_bytes(), secure_wipe(), ct_memcmp()
 │   ├── test_metrics.c         # timer.c and logger.c
 │   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
+│   ├── test_store.c           # store.c: file layout, dedup, restart, full, torn tail, corruption
 │   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09 over a socketpair
 │   ├── test_tcp.c             # tcp.c on loopback
 │   ├── e2e_tls_link.sh        # tls_server + tls_client as real processes: A, B, T03, T04
@@ -276,7 +280,9 @@ Still open:
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?
       (advisor Q5)
 - [ ] Loss emulation: `tc netem` on the Pis or at the access point (advisor Q10)
-- [ ] Persistent store on each Pi (SQLite, or an append-only file with fsync)
+- [x] Persistent store: an append-only file with `fsync`, not SQLite (team decision 2026-10-17;
+      [docs/telemetry_format.md](docs/telemetry_format.md) sections 6 and 7). Pi B's store is
+      `src/store/`; the client queue will follow the same rules
 - [ ] Queue capacity, overflow policy and test durations (proposed in
       [docs/telemetry_format.md](docs/telemetry_format.md))
 - [ ] Confirm: no rekey, no command channel, one-way server authentication (advisor Q6, Q8)

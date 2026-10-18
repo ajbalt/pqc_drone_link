@@ -26,10 +26,12 @@ looks the way it does.
 | 8    | TLS link wrapper (OpenSSL, pinned group and suite) | `src/tls/tls_link.h/.c` | `tests/test_tls_link.c` | Done |
 | 9    | TCP helpers, TLS server and client programs | `src/net/tcp.h/.c`, `pi/tls_server.c`, `pi/tls_client.c` | `tests/test_tcp.c`, `tests/e2e_tls_link.sh` | Done |
 | 10   | T10 handshake benchmark harness | `experiments/bench_handshake.c`, `scripts/run_handshake_bench.sh`, `scripts/summarize_handshakes.py` | `tests/e2e_bench.sh`, `tests/test_summarize.py` | Done (client side) |
-| 11   | Durable store: commit, dedup, persistent queue | (not started) | — | Next |
+| 11   | Durable store: append-only file, dedup by node+seq | `src/store/store.h/.c` | `tests/test_store.c` | Done (not yet used by `tls_server`) |
+| 12   | Use the store in `tls_server` (ACK after commit, count) | `pi/tls_server.c` | `tests/e2e_tls_link.sh` | Next |
+| 13   | Persistent queue on the client, window and resend | (not started) | — | Planned |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
-Phase 1 (computers only, advisor 2026-10-16) is implemented through step 10 below on `main`.
+Phase 1 (computers only, advisor 2026-10-16) is implemented through step 11 below on `main`.
 The Pico firmware (Phase 2) and the hardware gates in [schedule.md](schedule.md) are not
 started.
 
@@ -216,6 +218,53 @@ output in `evidence/`; add packet-loss runs once `tc netem` is set up; decide Q1
 
 ---
 
+## store.h: the durable record store (Pi B)
+
+**What it is.** The server's commit step (crypto rules 15 and 16, spec section 6). `store_insert()`
+appends a record to one file and `fsync()`s it before returning, so `PQC_OK` means "safe to ACK".
+A record whose `node`+`seq` is already stored changes nothing and returns `is_new = 0` (T05). On
+open, the whole file is read back to rebuild the dedup index, so the count after a restart is
+what is on disk. Store chosen 2026-10-17: append-only file, not SQLite (README open decision).
+
+**File layout.** An 8-byte header `PQCSTOR1` (the last byte is the format version), then fixed
+40-byte entries: the 36-byte RECORD message exactly as `wire_encode_record()` writes it, plus a
+big-endian CRC-32 (IEEE, as zlib) of those 36 bytes. Fixed in a byte vector in `test_store.c`.
+
+**Design choices**
+
+- **Append-only file over SQLite:** no new dependency to install and pin on every machine, and
+  every durability step is our own short, tested code. SQLite stays the fallback if this ever
+  proves too slow or too fragile.
+- **One `fsync()` per record.** Simplest and safest; its cost on a microSD card must be measured
+  in L7 before anything is batched (schedule risk "SD-card wear and sync cost").
+- **The index changes only after the fsync succeeds,** so memory never claims a record a crash
+  could lose. A new file's directory is synced too, or its name could be lost.
+- **Only the last entry may be torn.** A short or bad-CRC last entry is cut off on open (it was never
+  ACKed, so the client resends it) and the cut size is reported by `store_truncated_bytes()`.
+  Damage before the last entry, a repeated entry or a foreign file gives `PQC_ERR_STORE_CORRUPT`
+  and leaves the file untouched.
+- **Duplicates are checked before capacity,** so a resend after a lost ACK is still ACKed when the
+  store is full; a new record when full gives `PQC_ERR_STORE_FULL` and must not be ACKed.
+- **One failed write or fsync disables the store** until it is reopened: Linux can drop the unwritten
+  pages and clear the error, so a retried fsync could "succeed" with nothing on disk.
+- **The whole index is allocated at open** (`max_records` × 16 B), so an insert never allocates.
+- **Error codes `-100..-101`** (`PQC_ERR_STORE_*`); read and write failures use `PQC_ERR_IO`.
+- **No file lock:** one process per store file is a documented `@warning`, not enforced.
+
+**What to notice.** `write()` only reaches the kernel's memory, `fsync()` reaches the disk;
+`pread`/`pwrite` take an explicit offset and can be short or interrupted (`EINTR`), so both are
+looped; the CRC catches accidents, not attackers, and is not a secret (so `!=`, not `ct_memcmp`);
+binary search uses `lo + (hi - lo) / 2`; overlapping shifts need `memmove`; the opaque
+`struct store` stops callers from bypassing the fsync-then-index order; outputs are cleared first
+so an ignored return code shows nothing rather than garbage; tests simulate a power cut by
+appending half an entry between close and open.
+
+**Follow-ups.** Use it in `tls_server` (`--store`, `--store-max`; ACK only after `PQC_OK`; log the
+count and truncated bytes at startup) and test T05 end to end; measure the per-record fsync cost on
+the real store medium; the client queue (step 13) needs the same torn-tail rules.
+
+---
+
 ## Progress report (LaTeX)
 
 `docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
@@ -349,6 +398,7 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Tests pass locally but a fresh build fails with "server did not start" | CTest properties are `FIXTURES_SETUP` and `FIXTURES_REQUIRED` (plural); singular names are silently ignored, so only definition order made it work | Test from an empty build directory |
 | `bash: tests/e2e_bench.sh: No such file or directory` | File saved as `tests/ e2e_bench.sh` (leading space) | `ls -b tests` shows the escaped name |
 | `Permission denied` running a script | Typed-in files get mode 0644 | `chmod +x`, as `make_demo_certs.sh` has in git |
+| CLion marks `O_DIRECTORY` / `O_CLOEXEC` undefined, but `cmake --build build` is clean | They are POSIX.1-2008 names, hidden under strict `-std=c17` unless `_POSIX_C_SOURCE=200809L` is set. CLion's own configure had failed ("Could NOT find OpenSSL"), so its analyzer never got the project's defines | Add `-DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9` to the CLion CMake profile and reload; trust the terminal build |
 | git diff shows "No newline at end of file" | Editor not adding a final newline | Editor setting + `clang-format -i` before committing |
 
 **Reading an "undefined reference" error:** the compiler only checks that
@@ -370,6 +420,10 @@ implement them.
       length × events per packet), and `analysis/parse_logs.py` flags any
       run that contains a `log_dropped` row.
 - [x] Add the extra files above to the repo layout (README.md).
+- [ ] `tls_server` sends an ACK only after `store_insert()` returns `PQC_OK`, and changes the
+      unique-record count only when `is_new` is 1 (crypto rules 15 and 16).
+- [ ] After `PQC_ERR_IO` from the store, the server stops ACKing and reopens the store (or exits).
+- [ ] The client queue file never deletes or repairs damage before its last entry.
 
 ## Open decisions still pending
 
@@ -398,3 +452,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-16 | `tls_link` module (pinned TLS 1.3 client/server wrapper) verified, typed in and tested: A, B, T02, T03, T04, T09 and timeout over a socketpair. `ctest` 6/6. Next: `tls_server` and `tls_client` programs |
 | 2026-10-17 | `tcp`, `tls_server` and `tls_client` typed in and tested. First end-to-end run on one machine: A and B succeed, T03 and T04 fail closed, as real processes. `ctest` 8/8. Commit step is a stub. Next: durable store, dedup and ACK-after-commit |
 | 2026-10-17 | T10 handshake benchmark harness typed in and tested: `bench_handshake`, `run_handshake_bench.sh`, `summarize_handshakes.py`, `tls_conn_bytes`. Fixed the CTest fixture property names (plural). First full run on this machine produced CSVs, meta and summary in `results/` (dev machine, not evidence). `ctest` 10/10 |
+| 2026-10-17 | Store decided: append-only file with fsync (not SQLite). `store` module (`src/store/`) verified, typed in and tested: dedup by node+seq, restart, capacity, torn tail, bad CRC, foreign file. New error codes -100, -101. Spec sections 6, 7 and 11 updated. `ctest` 11/11. Not yet used by `tls_server`. Next: use the store in `tls_server` |

@@ -5,7 +5,8 @@
 `tls_server.c` and `tls_client.c` run the TLS link on one machine: the client sends numbered
 RECORDs (IMU values zero), the server ACKs each one. `--config A` pins X25519, `--config B` pins
 `X25519MLKEM768`. The server's commit step is a **stub**, so its ACK is not yet a durable commit
-(rule 15). Usage is in the file headers and the README. `tests/e2e_tls_link.sh` runs both as real
+(rule 15). The durable store it will use exists in `src/store/` (tested on its own, not yet wired
+in). Usage is in the file headers and the README. `tests/e2e_tls_link.sh` runs both as real
 processes through A, B, T03 and T04.
 
 ## Still to do (full system)
