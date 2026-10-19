@@ -8,7 +8,8 @@ budget allowances, not quotes, so none are copied here.
 
 **Phase 1 (2026-10-16): no purchases.** The advisor asked us to use existing computers
 first. Nothing here is requested until Phase 2,. Pico W and Pico 2 are
-both acceptable per the advisor, so use whichever is available.
+both acceptable per the advisor, so use whichever is available. Either one only does sensor and
+display I/O (team decision, 2026-10-19), so a Pico W's Wi-Fi radio is not needed.
 
 **Status: DRAFT.** The part list comes from the Build Guide ("LINK: Purchase or reserve
 these exact parts"). Everything marked TBD must be checked against what RSCL has in stock

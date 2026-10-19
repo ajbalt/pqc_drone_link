@@ -44,8 +44,16 @@ spec and the advisor's approval.
   declared in a header first; helpers that aren't in a header must be `static`.
 - **The Pi services (Pi A client and queue, Pi B server and store) are written in C17**
   (team decision, 2026-10-10). Confirm with the advisor (Q11).
-- **Open:** the Pico firmware language (C SDK or MicroPython). Do not start Pico firmware
-  until it is decided and recorded here.
+- **The Pico firmware is written in C with the Raspberry Pi Pico C/C++ SDK** (team decision,
+  2026-10-19; MicroPython is not used). A Pico 2 or a Pico W only does sensor and display I/O
+  (Pico A reads the IMU, Pico B drives the OLED) and **no cryptography**: they are not powerful
+  enough to run TLS, so all TLS stays on the Pis. Firmware is built with `-Wall -Wextra -Werror`
+  *(proposed)* and follows the same buffer, timing and bad-frame rules as the Pi code. Confirm the
+  role with the advisor (see `docs/advisor_questions.md`, Q13).
+
+- **Code shared with the Pico firmware** (today `src/proto/uart_frame.c`) must include only
+  `<stdint.h>`, `<stddef.h>` and `common/errors.h`: no heap, no stdio, no OS calls, no OpenSSL. Pi
+  code and firmware then compile the same file and cannot disagree about a wire format.
 
 ## Dependencies
 

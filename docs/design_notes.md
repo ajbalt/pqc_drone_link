@@ -32,7 +32,9 @@ looks the way it does.
 | 14   | Client uses the queue: window of 32, ACK timeout, reconnect backoff, outage and restart tests | `pi/tls_client.c` | `tests/e2e_tls_link.sh` (17 cases) | Done |
 | 15   | Packet-loss runs (T08): `tc netem` in a private namespace, per-run CSV, summary; handshake timeouts are retried | `scripts/run_loss_test.sh`, `scripts/summarize_loss.py`, `experiments/configs/t08_loss_loopback.conf`, `src/tls/tls_link.c`, `pi/tls_client.c` | `tests/e2e_loss.sh`, `tests/test_summarize_loss.py`, `tests/test_tls_link.c` | Done |
 | 16   | Server-side CPU and memory in the T10 benchmark: `tls_server --handshake-csv`, `mem` module, `--server` in the summary | `src/metrics/mem.h/.c`, `pi/tls_server.c`, `scripts/summarize_handshakes.py`, `scripts/run_handshake_bench.sh` | `tests/test_metrics.c`, `tests/test_summarize.py`, `tests/e2e_bench.sh` (25 checks) | Done |
-| 17   | Full-size runs on a quiet machine (T10 100+ handshakes, T08 10 x 10 min); then packet captures for byte totals with headers | (not started) | — | Next |
+| 17   | Shared UART frame: encoder, sample packing, resynchronising parser (Pico A and Pi A compile the same file) | `src/proto/uart_frame.h/.c` | `tests/test_uart_frame.c` | Done |
+| 18   | Pi A sample source: read the UART (a pseudo-terminal in tests), turn frames into queue records, count `uart_bad_frames` and `uart_gap` | (not started) | — | Next |
+| 19   | Full-size runs on a quiet machine (T10 100+ handshakes, T08 10 x 10 min); then packet captures for byte totals with headers | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Phase 1 (computers only, advisor 2026-10-16) is implemented through step 12 below on `main`.
@@ -475,6 +477,53 @@ during the full suite.
 
 ---
 
+## uart_frame.h: the UART frame shared by Pico A and Pi A (step 17)
+
+**What it is.** The frame of spec section 2 (`A5 5A | len | payload | crc16`): an encoder, packing of the
+16-byte sample payload, and a parser that finds frames in a noisy byte stream. Pico A will compile
+`uart_frame.c` to send, Pi A to receive, so both ends agree by construction. It depends only on
+`<stdint.h>`, `<stddef.h>` and `common/errors.h` (no heap, no stdio, no OS), so the Pico SDK build can
+take the file as it is. It is part of `pqc_proto`.
+
+**Design choices**
+
+- **The parser examines a window, not a state.** It keeps at most 37 bytes (the longest frame), looks at
+  the first byte not yet judged, and on a bad length or bad CRC drops only that first byte and looks
+  again. A lost byte, an extra byte or a false `A5 5A` therefore costs only the damaged frame; a parser
+  that discards the whole claimed frame also loses the real frames it swallowed.
+- **`push` a byte, then `poll` until `NONE`.** One byte can finish a frame and expose a second behind a
+  damaged one, so a single call cannot report everything. The window cannot overflow: when `poll` says
+  `NONE` it holds fewer bytes than the frame it waits for; pushing without polling returns
+  `PQC_ERR_BUFFER_TOO_SMALL`.
+- **`uart_parser_init(p, 16)` rejects any other payload size as a bad length,** even with a good CRC (the
+  spec's "wrong payload size"); `0` accepts 1 to 32 (for Pico B's display messages).
+- **The payload pointer points into the window** and is valid until the next `push` or `poll`; the frame is
+  removed at the start of that call. The header warns: copy it first.
+- **The CRC is CRC-16/CCITT-FALSE,** check value `0x29B1`, over the `len` byte and the payload. It catches
+  accidents on a cable; it is not security (TLS protects the Wi-Fi link).
+- **No new error codes:** `PQC_ERR_INVALID_ARG`, `PQC_ERR_BUFFER_TOO_SMALL`, `PQC_ERR_WIRE_BAD_LENGTH`.
+- **Counters:** `frames_ok`, `bad_length`, `bad_crc`, `noise_bytes` (wrap at 2^32). The spec's
+  `uart_bad_frames` is `bad_length` + `bad_crc`. Gaps in `pico_ms` (`uart_gap`) are not judged here.
+
+**What the tests check (17 functions).** The spec's example frame as a byte vector, computed with an
+independent Python CRC; every single-bit flip of a frame (in both length modes); every possible lost byte;
+inserted bytes of five values at every position; 40 noise seeds; a false header that claims 32 bytes and
+swallows two frames; truncation; the bounded window; scripted counters; a 300,000-byte random stream. A
+deliberately wrong CRC range, a whole-frame drop and a missing length check each failed tests (521, 23 and
+4 checks), so the tests can fail.
+
+**What to notice.** Converting an unsigned value above 32767 to `int16_t` is implementation-defined in C,
+so `get_be16_signed` uses arithmetic; the CRC works in a `uint32_t` because a `uint16_t` shifts as signed
+`int` and `-Wsign-compare` objects; one test expectation was wrong at first: an `A5` inserted between the
+two sync bytes leaves the frame intact, because the inserted byte becomes the sync byte.
+
+**Follow-ups.** Pi A's sample source (step 18) feeds this parser from the UART and counts `uart_gap`.
+When the firmware is written, add `src/proto/uart_frame.c` to the SDK target and `src/` to its include
+path (see `pico/README.md`). Pico B's display message (Pi B to Pico B) still has no byte layout in the
+spec; it can reuse this framing with its own payload.
+
+---
+
 ## Progress report (LaTeX)
 
 `docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
@@ -677,4 +726,6 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-19 | Queue capacity and overflow proposed (10,000 un-ACKed records, reject new, still use the `seq`); spec section 7 updated. Step 13: `queue` module (`src/queue/`) and shared `fileio` (`src/common/`) verified, typed in and tested: layout, ACK entries, out-of-order ACKs, overflow, compaction, restart, torn tail, corruption, seq never reused, random model. New error codes -110 to -112. `ctest` 13/13. Next: use the queue in `tls_client` (step 14) |
 | 2026-10-19 | Step 14: `tls_client` uses the queue: `--queue`, `--rate-hz`, `--window`, `--backoff-ms`, `--deadline-ms`; reconnect with backoff after a lost session or failed TCP connect, handshake failure still fatal; ACKs checked against the oldest waiting record. `e2e_tls_link.sh` rewritten to 17 cases (T05 replay, T06 outage, T07 restart and SIGKILL, L9 overflow, lost link, window 1), all on one machine (not gate evidence). `ctest` 13/13. Next: loss emulation (T08) and server-side benchmark costs |
 | 2026-10-19 | Step 15: packet-loss runner for T08. `scripts/run_loss_test.sh` runs A and B at each loss level inside `unshare -Urn` namespaces with `tc netem` (no root); `summarize_loss.py` and `t08_loss_loopback.conf`. `tls_link` returns `PQC_ERR_TIMEOUT`/`PQC_ERR_IO` for a handshake that times out or hits a socket error, and `tls_client` retries those (other handshake failures stay fatal). `e2e_loss.sh` and `test_summarize_loss.py` added; `ctest` 15/15. One dev-machine repetition per cell delivered every record at 0, 10 and 30% (not a result). Next: server-side CPU and memory in the T10 benchmark (step 16) |
+| 2026-10-19 | Decision (team): Pico firmware is C with the Pico SDK; a Pico 2 or Pico W does sensor and display I/O only, no TLS, no cryptography. Recorded in CONTRIBUTING, README, scope, BOM, `pico/README.md`. To confirm with the advisor (Q13 wording) |
 | 2026-10-19 | Step 16: server-side T10 cost. `tls_server --handshake-csv` (CPU over `tls_accept()`, heap held by the open connection, bytes, peak RSS), new `src/metrics/mem` module (also used by `bench_handshake`), `--server` and `--server-warmup` in `summarize_handshakes.py`, `run_handshake_bench.sh` passes the files. `e2e_bench.sh` grows to 25 checks incl. client/server byte agreement; mutation-checked. `ctest` 15/15. One 100-handshake dev-machine run: server CPU 0.36 ms (A) vs 0.50 ms (B). `e2e_loss` failed once in a full run and did not reproduce (see step 16 follow-ups). Next: full-size runs on a quiet machine, then packet captures |
+| 2026-10-19 | Step 17: shared UART frame (`src/proto/uart_frame.h/.c`, part of `pqc_proto`): CRC-16/CCITT-FALSE, sample packing, windowed parser that loses only the damaged frame; spec section 2 gained the CRC definition, the parser rules and a 21-byte example frame. `tests/test_uart_frame.c` (every bit flip, lost byte, insertion, noise, false sync, random stream), mutation-checked, ASan/UBSan clean, compiles freestanding. `ctest` 16/16. Next: Pi A's sample source |

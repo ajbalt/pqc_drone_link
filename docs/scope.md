@@ -26,6 +26,10 @@ measurements, the migration to Raspberry Pi Pico W boards will be investigated.
   measurements (current, power, UART timing) are deferred with them.
 - Pico model: the advisor says either Pico W or Pico 2 is fine, since availability is
   limited. Choose per what the lab can get and record the model used.
+- Pico role (team decision, 2026-10-19; to confirm with the advisor): a Pico 2 or a Pico W does
+  **sensor and display I/O only**. Neither is powerful enough to run TLS, so all TLS, the queue and
+  the store stay on the Pi 4Bs, and the Pico firmware is C with the Pico SDK. A Pico W's Wi-Fi radio
+  is not used.
 
 The architecture, configurations and mandatory tests below describe the full system and
 are unchanged.

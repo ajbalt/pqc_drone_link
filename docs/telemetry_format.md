@@ -53,6 +53,34 @@ tolerance), which is fine because the demo shows relative motion.
 
 The receiver drops a frame with a bad CRC, a bad length or a wrong payload size, counts it
 (`uart_bad_frames`), and re-syncs. It never crashes or blocks on a malformed frame.
+
+**Shared encoder and parser** *(proposed, `src/proto/uart_frame.h`)*. The Pico firmware and Pi A use
+the same C file, so both ends agree by construction. The CRC is CRC-16/CCITT-FALSE: polynomial
+`0x1021`, initial value `0xFFFF`, no bit reflection, no final XOR, computed over the `len` byte and
+the payload; the check value of the ASCII string `123456789` is `0x29B1`. Example (one sample:
+`pico_ms` = `0x01020304`, `ax`..`gz` = 1, -1, 32767, -32768, 256, -256), 21 bytes:
+
+```
+a5 5a 10 01 02 03 04 00 01 ff ff 7f ff 80 00 01 00 ff 00 e0 ba
+```
+
+The parser keeps a window of at most 37 bytes (the longest frame) starting at the first byte it has
+not yet judged, and looks at the window, not at a state:
+
+1. A first byte that is not `0xA5`, or a first byte `0xA5` followed by a byte that is not `0x5A`, is
+   noise: drop one byte and count it (`noise_bytes`).
+2. A length of 0, above 32, or (when the receiver expects one size, 16 for samples) not that size is a
+   **bad length**: drop the first byte, count it (`bad_length`), and look again.
+3. A complete frame whose CRC does not match is a **bad CRC**: drop the first byte, count it
+   (`bad_crc`), and look again.
+4. A complete frame with a matching CRC is delivered (`frames_ok`) and removed.
+
+Dropping only the first byte, then looking again, means the bytes after a damaged frame are searched
+for the next real frame. A lost byte, an extra byte or a false `0xA5 0x5A` therefore costs only the
+damaged frame, not the frames after it. `uart_bad_frames` is `bad_length` + `bad_crc`. The CRC
+catches accidental corruption on the wire; it is not security (TLS protects the Wi-Fi link, and the
+UART is a cable between two boards we own).
+
 Pico A has no queue: if Pi A is down, samples are lost at the UART and counted as
 `uart_gap` from `pico_ms` gaps.
 
@@ -280,8 +308,8 @@ throttles to stay under 85 °C ([Raspberry Pi 4](research/raspberry-pi-4.md)) *(
 ## 11. Open points
 
 - The Pi services are written in C (team decision, 2026-10-10; the advisor has not
-  objected). Pico firmware language is still open. The persistent store was decided on
-  2026-10-17 (section 6).
+  objected). The Pico firmware is C with the Pico SDK and does I/O only, no cryptography (team
+  decision, 2026-10-19). The persistent store was decided on 2026-10-17 (section 6).
 - Pi B's store capacity: `tls_server --store-max`, default 100,000 records *(proposed)*, about
   2.8 hours at 10 Hz and 1.6 MB of index memory. The queue capacity in section 7 is for Pi A.
 - Final queue size, overflow policy, in-flight window and timeouts above.

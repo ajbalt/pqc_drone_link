@@ -25,12 +25,18 @@ add_library(pqc_metrics STATIC src/metrics/timer.c src/metrics/logger.c src/metr
 target_link_libraries(pqc_metrics PUBLIC pqc_common PRIVATE project_warnings)
 
 # Application wire format: RECORD and ACK messages
-add_library(pqc_proto STATIC src/proto/wire.c)
+add_library(pqc_proto STATIC src/proto/wire.c src/proto/uart_frame.c)
 target_link_libraries(pqc_proto PUBLIC pqc_common PRIVATE project_warnings)
 
 add_executable(test_wire tests/test_wire.c)
 target_link_libraries(test_wire PRIVATE pqc_proto project_warnings)
 add_test(NAME test_wire COMMAND test_wire)
+
+# UART frame between Pico A and Pi A: encoder, sample packing, resynchronising parser.
+# Shared with the Pico firmware, so uart_frame.c depends only on common/errors.h.
+add_executable(test_uart_frame tests/test_uart_frame.c)
+target_link_libraries(test_uart_frame PRIVATE pqc_proto project_warnings)
+add_test(NAME test_uart_frame COMMAND test_uart_frame)
 
 # Durable record store: append-only file, dedup by node+seq (Pi B)
 add_library(pqc_store STATIC src/store/store.c)

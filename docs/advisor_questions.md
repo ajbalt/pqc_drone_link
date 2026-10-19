@@ -58,6 +58,9 @@ Raspberry Pi Pico W boards will be investigated. Resulting decisions:
 - Either a Pico W or a Pico 2 is acceptable for Phase 2, since availability is limited.
   This partly answers **Q13** (the platform is no longer fixed to Pi 4B plus Pico 2).
 - Q5, Q6, Q8, Q10, Q11 and Q15 are still unanswered.
+- Team understanding, 2026-10-19, to confirm: the Pico (2 or W) does sensor and display I/O only and
+  all TLS stays on the Pi 4Bs; the Pico firmware is C with the Pico SDK. The note on Q13 above
+  ("no longer fixed to Pi 4B plus Pico 2") could be read as a platform change, so ask.
 
 ## Still open
 

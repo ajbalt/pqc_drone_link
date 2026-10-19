@@ -190,6 +190,8 @@ pqc_drone_link/
 │   │   ├── fileio.h           # Shared durable-file helpers: pread/pwrite loops, dir sync, CRC-32, big-endian
 │   │   └── fileio.c
 │   ├── proto/
+│   │   ├── uart_frame.h       # UART frame Pico A to Pi A: CRC-16, sample packing, resynchronising parser (shared with the Pico firmware)
+│   │   ├── uart_frame.c
 │   │   ├── wire.h             # RECORD and ACK messages (encode, header check, decode)
 │   │   └── wire.c
 │   ├── net/
@@ -226,6 +228,7 @@ pqc_drone_link/
 │   ├── test_rng.c             # rng_bytes(), secure_wipe(), ct_memcmp()
 │   ├── test_metrics.c         # timer.c, logger.c and mem.c
 │   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
+│   ├── test_uart_frame.c      # uart_frame.c: spec example frame, bit flips, lost/extra bytes, noise, false sync
 │   ├── test_store.c           # store.c: file layout, dedup, restart, full, torn tail, corruption
 │   ├── test_fileio.c          # fileio.c: CRC-32 check value, big-endian, pread/pwrite, dir sync
 │   ├── test_queue.c           # queue.c: layout, ACKs, overflow, restart, compaction, torn tail, random model
@@ -242,7 +245,8 @@ pqc_drone_link/
 │   ├── bench_handshake.c      # T10 client: many timed handshakes, A and B interleaved
 │   └── configs/               # One file per experiment; README lists the fields
 │       ├── t10_handshake_loopback.conf  # Handshake benchmark on one machine
-│       └── t08_loss_loopback.conf       # Packet-loss runs (A and B at 0, 10, 30%) on one machine
+│       ├── t08_loss_loopback.conf       # Packet-loss runs (A and B at 0, 10, 30%), dev-sized, about 3 minutes
+│       └── t08_loss_full.conf           # Same at the spec's size: 10 min at 10 Hz, 10 repetitions, about 11 hours
 ├── scripts/
 │   ├── run_demo.sh            # (planned) assemble-and-run for another student
 │   ├── make_demo_certs.sh     # Demo CA and server certificate (backdated 1 day, 30 days)
@@ -317,8 +321,10 @@ Still open:
 - [ ] Which computers run Phase 1 for the final measurements (so far one development machine)
 - [x] Server-side CPU and memory in the T10 benchmark: `tls_server --handshake-csv`, shown by
       `summarize_handshakes.py --server` (step 16, 2026-10-19; dev machine only)
-- [ ] Pico firmware language (C SDK or MicroPython). The Pi services are decided: C17
-      (team decision 2026-10-10, still to be confirmed with the advisor, Q11)
+- [x] Pico firmware language: C with the Pico C/C++ SDK; a Pico 2 or Pico W does sensor and display
+      I/O only, all TLS stays on the Pis (team decision 2026-10-19, to confirm with the advisor,
+      [CONTRIBUTING.md](CONTRIBUTING.md) "Language and compiler flags")
+- [ ] Confirm with the advisor that the Pi services stay in C17 (team decision 2026-10-10, Q11)
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?
       (advisor Q5)
 - [ ] Loss emulation: `tc netem` on the Pis or at the access point (advisor Q10). On a development
