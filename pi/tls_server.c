@@ -4,15 +4,18 @@
  *
  * Usage:
  *   tls_server --config A|B --port N --cert srv.crt --key srv.key
+ *              --store records.dat [--store-max 100000]
  *              [--bind 127.0.0.1] [--timeout-ms 5000] [--max-conns N]
  *
  * --config A pins X25519, --config B pins X25519MLKEM768 (CONTRIBUTING.md rule
  * 11). --port 0 picks a free port, printed as "listening port=N". --max-conns
  * stops the server after N connections (0 = run until killed).
  *
- * @warning commit_record() is a stub: nothing is stored durably yet, so an ACK
- *          from this server does NOT yet mean "committed" (rule 15). The store
- *          module replaces it.
+ * Every RECORD is committed to the durable store (store.h) before its ACK is
+ * sent (rule 15); a repeated node+seq is ACKed again and changes nothing
+ * (rule 16, test T05). --store is required: there is no mode that ACKs
+ * without storing. If the store fails, the server stops, so that a restart
+ * reopens it and reads back what is really on disk.
  */
 
 #include <errno.h>
@@ -25,6 +28,7 @@
 #include "common/errors.h"
 #include "net/tcp.h"
 #include "proto/wire.h"
+#include "store/store.h"
 #include "tls/tls_link.h"
 
 /** @brief The only sender ID this server accepts (docs/telemetry_format.md). */
@@ -39,12 +43,30 @@ struct options {
   const char *key;      /**< server private key (PEM); never commit it */
   unsigned long timeout_ms;
   unsigned long max_conns; /**< 0 = no limit */
+  const char *store;       /**< durable store file */
+  unsigned long store_max; /**< most records the store may hold */
+};
+
+/** @brief Why a connection ended. */
+enum conn_end {
+  CONN_END_CLOSED,     /**< the client closed cleanly */
+  CONN_END_PROTOCOL,   /**< bad message, timeout or link error */
+  CONN_END_STORE_FULL, /**< a new record did not fit; it was not ACKed */
+  CONN_END_STORE_FAIL, /**< the store failed; the server must stop */
+};
+
+/** @brief What one connection did. */
+struct conn_stats {
+  unsigned records;     /**< RECORDs ACKed */
+  unsigned new_records; /**< RECORDs stored for the first time */
+  unsigned duplicates;  /**< RECORDs already stored (ACKed again, T05) */
 };
 
 /** @brief Print usage to stderr. */
 static void usage(const char *prog) {
   fprintf(stderr,
           "usage: %s --config A|B --port N --cert FILE --key FILE\n"
+          "          --store FILE [--store-max N]\n"
           "          [--bind ADDR] [--timeout-ms N] [--max-conns N]\n",
           prog);
 }
@@ -73,6 +95,8 @@ static int parse_args(int argc, char **argv, struct options *o) {
   o->timeout_ms = 5000;
   o->max_conns = 0;
   o->port = 0;
+  o->store = NULL;
+  o->store_max = 100000; /* (proposed) docs/telemetry_format.md section 7 */
   for (int i = 1; i < argc; i += 2) {
     if (i + 1 >= argc) {
       return -1;
@@ -107,42 +131,40 @@ static int parse_args(int argc, char **argv, struct options *o) {
       if (parse_number(v, 1000000, &o->max_conns) != 0) {
         return -1;
       }
+    } else if (strcmp(k, "--store") == 0) {
+      o->store = v;
+    } else if (strcmp(k, "--store-max") == 0) {
+      if (parse_number(v, 100000000, &o->store_max) != 0 || o->store_max == 0) {
+        return -1;
+      }
     } else {
       return -1;
     }
   }
-  return (have_config && have_port && o->cert != NULL && o->key != NULL) ? 0
-                                                                         : -1;
+  return (have_config && have_port && o->cert != NULL && o->key != NULL &&
+          o->store != NULL)
+             ? 0
+             : -1;
 }
 
 /**
- * @brief Store a record. STUB: stores nothing (see the file warning).
- * @return PQC_OK when the record may be ACKed.
+ * @brief Read RECORDs from one connection, commit and ACK each until it ends.
+ * @param[in]  conn   Open TLS connection.
+ * @param[in]  st     Open store.
+ * @param[out] stats  What the connection did.
+ * @return Why the connection ended.
  */
-static int commit_record(const struct wire_record *rec) {
-  (void)rec;
-  return PQC_OK;
-}
-
-/**
- * @brief Read RECORDs from one connection and ACK each until it ends.
- * @param[in]  conn     Open TLS connection.
- * @param[out] records  RECORDs ACKed.
- * @param[out] bad      1 if the connection ended on a protocol error.
- */
-static void serve_messages(struct tls_conn *conn, unsigned *records,
-                           unsigned *bad) {
-  *records = 0;
-  *bad = 0;
+static enum conn_end serve_messages(struct tls_conn *conn, struct store *st,
+                                    struct conn_stats *stats) {
+  memset(stats, 0, sizeof(*stats));
   for (;;) {
     uint8_t hdr[WIRE_HEADER_LEN];
     int rc = tls_read_exact(conn, hdr, sizeof(hdr));
     if (rc == PQC_ERR_TLS_CLOSED) {
-      return; /* the client finished and said goodbye */
+      return CONN_END_CLOSED; /* the client finished and said goodbye */
     }
     if (rc != PQC_OK) {
-      *bad = 1;
-      return;
+      return CONN_END_PROTOCOL;
     }
 
     /* Never read a payload before its announced length has been checked. */
@@ -155,42 +177,95 @@ static void serve_messages(struct tls_conn *conn, unsigned *records,
         tls_read_exact(conn, payload, len) != PQC_OK ||
         wire_decode_record(payload, len, &rec) != PQC_OK ||
         rec.node != KNOWN_NODE) {
-      *bad = 1;
-      return;
+      return CONN_END_PROTOCOL;
     }
 
-    /* ACK only after the commit step succeeds (rule 15). */
+    /* ACK only after the record is durable (rule 15). */
+    int is_new = 0;
+    rc = store_insert(st, &rec, &is_new);
+    if (rc == PQC_ERR_STORE_FULL) {
+      /* Not ACKed, so the client keeps it. Ending the connection tells the
+       * client now, instead of after its ACK timeout. */
+      printf("store_full node=%u seq=%llu\n", (unsigned)rec.node,
+             (unsigned long long)rec.seq);
+      return CONN_END_STORE_FULL;
+    }
+    if (rc != PQC_OK) {
+      printf("store_failed rc=%d seq=%llu\n", rc, (unsigned long long)rec.seq);
+      return CONN_END_STORE_FAIL;
+    }
+    /* Only a new insert counts (rule 16): a duplicate is ACKed again and
+     * changes nothing else. */
+    if (is_new) {
+      stats->new_records++;
+    } else {
+      stats->duplicates++;
+    }
+
     struct wire_ack ack = {.node = rec.node, .seq = rec.seq};
     uint8_t msg[WIRE_ACK_MSG_LEN];
     size_t msg_len = 0;
-    if (commit_record(&rec) != PQC_OK ||
-        wire_encode_ack(&ack, msg, sizeof(msg), &msg_len) != PQC_OK ||
+    if (wire_encode_ack(&ack, msg, sizeof(msg), &msg_len) != PQC_OK ||
         tls_write_all(conn, msg, msg_len) != PQC_OK) {
-      *bad = 1;
-      return;
+      /* The record is stored; a lost ACK only means the client resends it,
+       * and the resend is deduplicated. */
+      return CONN_END_PROTOCOL;
     }
-    (*records)++;
+    stats->records++;
   }
 }
 
-/** @brief Handshake and serve one accepted socket. */
-static void handle_client(struct tls_ctx *ctx, int fd) {
+/**
+ * @brief Handshake and serve one accepted socket.
+ * @return Why the connection ended (CONN_END_PROTOCOL for a failed handshake).
+ */
+static enum conn_end handle_client(struct tls_ctx *ctx, int fd,
+                                   struct store *st) {
   struct tls_conn *conn = NULL;
   int rc = tls_accept(ctx, fd, &conn);
   if (rc != PQC_OK) {
     char err[160];
     tls_last_error(err, sizeof(err));
     printf("handshake_failed rc=%d err=\"%s\"\n", rc, err);
-    return;
+    return CONN_END_PROTOCOL;
   }
   /* The negotiated group is logged for every connection (test T02). */
   printf("connected group=%s cipher=%s\n", tls_conn_group(conn),
          tls_conn_cipher(conn));
 
-  unsigned records = 0, bad = 0;
-  serve_messages(conn, &records, &bad);
-  printf("conn_done records=%u protocol_error=%u\n", records, bad);
+  struct conn_stats stats;
+  enum conn_end end = serve_messages(conn, st, &stats);
+  uint64_t count = 0;
+  store_count(st, &count); /* cannot fail: st is open */
+  printf(
+      "conn_done records=%u protocol_error=%d new=%u duplicates=%u "
+      "count=%llu\n",
+      stats.records, end == CONN_END_PROTOCOL, stats.new_records,
+      stats.duplicates, (unsigned long long)count);
   tls_conn_free(conn);
+  return end;
+}
+
+/**
+ * @brief Open the store and log what it holds.
+ * @return The open store, or NULL after printing why it could not be opened.
+ */
+static struct store *open_store(const struct options *o) {
+  struct store *st = NULL;
+  int rc = store_open(o->store, (size_t)o->store_max, &st);
+  if (rc != PQC_OK) {
+    /* A corrupt store is never repaired here: the file is evidence. */
+    fprintf(stderr, "cannot open store %s rc=%d\n", o->store, rc);
+    return NULL;
+  }
+  uint64_t count = 0, cut = 0;
+  store_count(st, &count); /* neither can fail: st is open */
+  store_truncated_bytes(st, &cut);
+  /* The count is read back from disk, so a restart cannot change it (L8). A
+   * nonzero cut means the last run stopped in the middle of a write. */
+  printf("store path=%s count=%llu truncated_bytes=%llu\n", o->store,
+         (unsigned long long)count, (unsigned long long)cut);
+  return st;
 }
 
 /** @brief Program entry point. */
@@ -214,16 +289,23 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  /* Open the store before listening: no client is accepted until every
+   * record already on disk is in the dedup index. */
+  struct store *st = open_store(&o);
+  if (st == NULL) {
+    tls_ctx_free(ctx);
+    return 1;
+  }
+
   int lfd = -1;
   uint16_t port = 0;
   if (tcp_listen(o.bind, (uint16_t)o.port, &lfd) != PQC_OK ||
       tcp_local_port(lfd, &port) != PQC_OK) {
     fprintf(stderr, "cannot listen on %s:%lu\n", o.bind, o.port);
+    store_close(st);
     tls_ctx_free(ctx);
     return 1;
   }
-  fprintf(stderr,
-          "WARNING: commit is a stub; ACK does not yet mean durably stored\n");
   printf("listening port=%u group=%s\n", (unsigned)port,
          tls_group_name(o.group));
 
@@ -237,13 +319,22 @@ int main(int argc, char **argv) {
       break;
     }
     /* A silent client must not hold the server forever. */
+    enum conn_end end = CONN_END_PROTOCOL;
     if (tcp_set_timeout_ms(fd, (unsigned)o.timeout_ms) == PQC_OK) {
-      handle_client(ctx, fd);
+      end = handle_client(ctx, fd, st);
     }
     close(fd);
+    if (end == CONN_END_STORE_FAIL) {
+      /* Never keep ACKing on a store that failed: a retried fsync can
+       * report success with nothing on disk. */
+      fprintf(stderr, "store failed; stopping\n");
+      status = 1;
+      break;
+    }
   }
 
   close(lfd);
+  store_close(st);
   tls_ctx_free(ctx);
   return status;
 }

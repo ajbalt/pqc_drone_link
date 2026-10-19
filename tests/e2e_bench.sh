@@ -11,7 +11,7 @@ check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; fail=1; fi; }
 start_server() { # config -> prints port
   local cfg=$1 log="$WORK/server_$1.log" port=""
   "$SERVER" --config "$cfg" --port 0 --cert "$CERTS/srv.crt" --key "$CERTS/srv.key" \
-            --timeout-ms 3000 > "$log" 2>/dev/null &
+            --store "$WORK/store_$1.dat" --timeout-ms 3000 > "$log" 2>/dev/null &
   for _ in $(seq 1 50); do
     port=$(sed -n 's/^listening port=\([0-9]*\).*/\1/p' "$log")
     [ -n "$port" ] && break

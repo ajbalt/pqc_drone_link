@@ -26,12 +26,12 @@ looks the way it does.
 | 8    | TLS link wrapper (OpenSSL, pinned group and suite) | `src/tls/tls_link.h/.c` | `tests/test_tls_link.c` | Done |
 | 9    | TCP helpers, TLS server and client programs | `src/net/tcp.h/.c`, `pi/tls_server.c`, `pi/tls_client.c` | `tests/test_tcp.c`, `tests/e2e_tls_link.sh` | Done |
 | 10   | T10 handshake benchmark harness | `experiments/bench_handshake.c`, `scripts/run_handshake_bench.sh`, `scripts/summarize_handshakes.py` | `tests/e2e_bench.sh`, `tests/test_summarize.py` | Done (client side) |
-| 11   | Durable store: append-only file, dedup by node+seq | `src/store/store.h/.c` | `tests/test_store.c` | Done (not yet used by `tls_server`) |
-| 12   | Use the store in `tls_server` (ACK after commit, count) | `pi/tls_server.c` | `tests/e2e_tls_link.sh` | Next |
-| 13   | Persistent queue on the client, window and resend | (not started) | — | Planned |
+| 11   | Durable store: append-only file, dedup by node+seq | `src/store/store.h/.c` | `tests/test_store.c` | Done |
+| 12   | Use the store in `tls_server` (ACK after commit, count) | `pi/tls_server.c` | `tests/e2e_tls_link.sh` | Done |
+| 13   | Persistent queue on the client, window and resend | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
-Phase 1 (computers only, advisor 2026-10-16) is implemented through step 11 below on `main`.
+Phase 1 (computers only, advisor 2026-10-16) is implemented through step 12 below on `main`.
 The Pico firmware (Phase 2) and the hardware gates in [schedule.md](schedule.md) are not
 started.
 
@@ -152,7 +152,7 @@ because TLS returns whatever has arrived; every call clears OpenSSL's error queu
 `tls_last_error()` is current. Group names compare case-insensitively (`x25519` vs
 `X25519MLKEM768`).
 
-**Follow-ups.** The server's commit hook is a stub until the store exists (rule 15). T09 is
+**Follow-ups.** T09 is
 covered here by raw bytes on a socketpair; repeat it through a proxy on the real link.
 
 ---
@@ -164,8 +164,16 @@ covered here by raw bytes on a socketpair; repeat it through a proxy on the real
 
 **Design choices**
 
-- **The commit step is a stub.** `commit_record()` stores nothing, so an ACK is not yet a durable
-  commit (rule 15). The server warns on startup. The store module replaces it.
+- **ACK after a durable commit (step 12, 2026-10-18).** Each RECORD goes through `store_insert()`
+  before its ACK (rule 15); a duplicate is ACKed again and counted as a duplicate, not as new
+  (rule 16, T05). `--store` is required, so there is no mode that ACKs without storing. The store
+  is opened before the server listens, and its count and truncated bytes are printed at start.
+- **How a connection ends is an `enum conn_end`:** closed, protocol error, store full (the record is
+  not ACKed and the connection closes so the client knows at once), or store failure (the server
+  exits, so a restart reads back what is really on disk). `--store-max` defaults to 100,000
+  *(proposed)*.
+- **The benchmark servers get a store too** (the server requires one); the benchmark sends no
+  RECORDs, so the store is never written while timing.
 - **Stop-and-wait.** One record in flight; the window of 32 comes with the persistent queue.
 - **IPv4 literals for `--host` and `--bind`.** The certificate name is checked by TLS
   (`--hostname`), not by DNS.
@@ -177,9 +185,12 @@ covered here by raw bytes on a socketpair; repeat it through a proxy on the real
 **What to notice.** The server checks a header's length before reading the payload; `TCP_NODELAY`
 keeps 12-36 byte messages from being batched; the client frees everything through one `goto done`
 path; the end-to-end script checks that a failing case never prints `connected` on the server, so a
-test cannot pass for the wrong reason.
+test cannot pass for the wrong reason. In step 12: decode, `store_insert()`, then ACK is the order
+rule 15 needs; a lost ACK is harmless only because the resend is deduplicated; resources are freed
+in reverse order on every early exit; the foreign-file case checks the file is byte-for-byte
+unchanged (`cmp`), not only the exit code.
 
-**Follow-ups.** Replace `commit_record()` with a durable store and deduplication (T05); add the
+**Follow-ups.** Add the
 persistent queue and the window of 32 on the client (T06-T08); the benchmark harness (T10) and the
 loss emulation (`tc netem`) are separate modules; T09 here is raw bytes on a socketpair, repeat it
 through a proxy on the real link.
@@ -259,7 +270,7 @@ binary search uses `lo + (hi - lo) / 2`; overlapping shifts need `memmove`; the 
 so an ignored return code shows nothing rather than garbage; tests simulate a power cut by
 appending half an entry between close and open.
 
-**Follow-ups.** Use it in `tls_server` (`--store`, `--store-max`; ACK only after `PQC_OK`; log the
+**Follow-ups.** Done in step 12: used in `tls_server` (`--store`, `--store-max`; ACK only after `PQC_OK`; log the
 count and truncated bytes at startup) and test T05 end to end; measure the per-record fsync cost on
 the real store medium; the client queue (step 13) needs the same torn-tail rules.
 
@@ -396,6 +407,7 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Doxygen: `Compound tls_conn is not documented` | Opaque struct defined in the `.c` file has no `/** @brief */` | Run the docs target before showing a draft |
 | Tests fail with 'cannot open' or every TLS case fails | Cert script run without `LD_LIBRARY_PATH` for the private OpenSSL, so no certificates were made | CMake runs the script with `LD_LIBRARY_PATH` set |
 | Tests pass locally but a fresh build fails with "server did not start" | CTest properties are `FIXTURES_SETUP` and `FIXTURES_REQUIRED` (plural); singular names are silently ignored, so only definition order made it work | Test from an empty build directory |
+| Linker in `tls_client`: undefined reference to `store_count` | The new server code was typed into `pi/tls_client.c`; the client target does not link `pqc_store`. The e2e script still passed because it tested the old, unsaved `tls_server.c` | Check the file name in the editor tab; `git status` must list the files you meant to change; count the PASS lines, not just the exit code |
 | `bash: tests/e2e_bench.sh: No such file or directory` | File saved as `tests/ e2e_bench.sh` (leading space) | `ls -b tests` shows the escaped name |
 | `Permission denied` running a script | Typed-in files get mode 0644 | `chmod +x`, as `make_demo_certs.sh` has in git |
 | CLion marks `O_DIRECTORY` / `O_CLOEXEC` undefined, but `cmake --build build` is clean | They are POSIX.1-2008 names, hidden under strict `-std=c17` unless `_POSIX_C_SOURCE=200809L` is set. CLion's own configure had failed ("Could NOT find OpenSSL"), so its analyzer never got the project's defines | Add `-DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9` to the CLion CMake profile and reload; trust the terminal build |
@@ -420,9 +432,10 @@ implement them.
       length × events per packet), and `analysis/parse_logs.py` flags any
       run that contains a `log_dropped` row.
 - [x] Add the extra files above to the repo layout (README.md).
-- [ ] `tls_server` sends an ACK only after `store_insert()` returns `PQC_OK`, and changes the
+- [x] `tls_server` sends an ACK only after `store_insert()` returns `PQC_OK`, and changes the
       unique-record count only when `is_new` is 1 (crypto rules 15 and 16).
-- [ ] After `PQC_ERR_IO` from the store, the server stops ACKing and reopens the store (or exits).
+- [x] After `PQC_ERR_IO` from the store, the server stops ACKing and reopens the store (or exits).
+      It exits (step 12).
 - [ ] The client queue file never deletes or repairs damage before its last entry.
 
 ## Open decisions still pending
@@ -453,3 +466,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-17 | `tcp`, `tls_server` and `tls_client` typed in and tested. First end-to-end run on one machine: A and B succeed, T03 and T04 fail closed, as real processes. `ctest` 8/8. Commit step is a stub. Next: durable store, dedup and ACK-after-commit |
 | 2026-10-17 | T10 handshake benchmark harness typed in and tested: `bench_handshake`, `run_handshake_bench.sh`, `summarize_handshakes.py`, `tls_conn_bytes`. Fixed the CTest fixture property names (plural). First full run on this machine produced CSVs, meta and summary in `results/` (dev machine, not evidence). `ctest` 10/10 |
 | 2026-10-17 | Store decided: append-only file with fsync (not SQLite). `store` module (`src/store/`) verified, typed in and tested: dedup by node+seq, restart, capacity, torn tail, bad CRC, foreign file. New error codes -100, -101. Spec sections 6, 7 and 11 updated. `ctest` 11/11. Not yet used by `tls_server`. Next: use the store in `tls_server` |
+| 2026-10-18 | Step 12: `tls_server` commits every RECORD to the store before its ACK (`--store` required, `--store-max`), logs new and duplicate counts per connection, exits on a store failure. `e2e_tls_link.sh` adds T05 (replay counted once), restart, torn tail, foreign store file and full store, all on one machine (not gate evidence). Benchmark scripts pass a store. `ctest` 11/11, 11 e2e cases. Next: persistent queue on the client |

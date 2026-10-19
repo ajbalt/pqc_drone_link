@@ -215,7 +215,8 @@ throttles to stay under 85 °C ([Raspberry Pi 4](research/raspberry-pi-4.md)) *(
 - The Pi services are written in C (team decision, 2026-10-10; the advisor has not
   objected). Pico firmware language is still open. The persistent store was decided on
   2026-10-17 (section 6).
-- Pi B's store capacity (`max_records`); the queue capacity in section 7 is for Pi A.
+- Pi B's store capacity: `tls_server --store-max`, default 100,000 records *(proposed)*, about
+  2.8 hours at 10 Hz and 1.6 MB of index memory. The queue capacity in section 7 is for Pi A.
 - Final queue size, overflow policy, in-flight window and timeouts above.
 - Whether Pi B authenticates Pi A (mutual TLS). The Build Guide asks for server
   verification only.

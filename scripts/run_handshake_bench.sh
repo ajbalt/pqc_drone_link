@@ -42,8 +42,10 @@ bash "$here/make_demo_certs.sh" "$P/bin/openssl" "$CERTS" > /dev/null
 
 start_server() { # config -> port
   local cfg=$1 log="$CERTS/server_$1.log" port=""
+  # The benchmark sends no RECORDs, so the store is never written while timing;
+  # both servers get one because the server requires it (rule 15).
   "$B/tls_server" --config "$cfg" --port 0 --cert "$CERTS/srv.crt" --key "$CERTS/srv.key" \
-                  --timeout-ms "$TMO" > "$log" 2>/dev/null &
+                  --store "$CERTS/store_$1.dat" --timeout-ms "$TMO" > "$log" 2>/dev/null &
   for _ in $(seq 1 50); do
     port=$(sed -n 's/^listening port=\([0-9]*\).*/\1/p' "$log")
     [ -n "$port" ] && break

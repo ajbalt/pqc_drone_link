@@ -52,8 +52,9 @@ and every report says so. This is an educational Wi-Fi link, not flight-approved
 TLS 1.3 client and server (C17, OpenSSL 3.5.9) that run configurations A and B, the wire format,
 TCP helpers, and the T10 handshake benchmark harness. Mandatory failure cases (T03, T04, T09) are
 covered by automated tests on a development machine. This is **not** gate evidence: that needs the
-Pis. A durable record store with deduplication exists (`src/store/`, tested) but the server does
-not use it yet, so its commit step is still a stub. Also missing: the persistent queue, outage and loss tests, server-side benchmark costs, and everything on the
+Pis. The server commits every record to a durable, deduplicated store before ACKing it
+(`src/store/`; replay T05, restart and torn-write cases run end to end on one machine). Still
+missing: the persistent queue on the client, outage and loss tests, server-side benchmark costs, and everything on the
 Pico, sensor and display side (Phase 2). Details and next steps: [docs/design_notes.md](docs/design_notes.md).
 
 `src/` also keeps the helpers from the earlier work: error codes, RNG and secret-wiping helpers, a
@@ -105,12 +106,15 @@ After building, make demo certificates with the same OpenSSL (keys stay out of g
 ```sh
 P=$HOME/opt/openssl-3.5.9
 LD_LIBRARY_PATH=$P/lib scripts/make_demo_certs.sh $P/bin/openssl /tmp/demo_certs
-build/tls_server --config B --port 5000 --cert /tmp/demo_certs/srv.crt --key /tmp/demo_certs/srv.key &
+build/tls_server --config B --port 5000 --cert /tmp/demo_certs/srv.crt --key /tmp/demo_certs/srv.key \
+                 --store /tmp/records.dat &
 build/tls_client --config B --host 127.0.0.1 --port 5000 --ca /tmp/demo_certs/ca.crt --count 10
 ```
 
 `--config A` pins X25519 and `--config B` pins `X25519MLKEM768`; both sides must use the
-same one. The server's commit step is a stub, so its ACK does not yet mean "stored".
+same one. The server writes each record to `--store` and `fsync()`s it before the ACK; run the
+client again and the same seqs are ACKed as duplicates without changing the count. Delete
+`/tmp/records.dat` to start from zero.
 
 ### Running the handshake benchmark (T10)
 
@@ -179,7 +183,7 @@ pqc_drone_link/
 │       └── logger.h / logger.c # Buffers events in memory, writes CSV logs
 ├── pico/                      # Pico firmware (Phase 2, not started); README lists the jobs and prerequisites
 ├── pi/                        # Services in C17; README lists the programs and what is still to come
-│   ├── tls_server.c           # Phase 1 TLS server: accepts RECORDs, ACKs them (commit is a stub)
+│   ├── tls_server.c           # Phase 1 TLS server: stores each RECORD durably, then ACKs it
 │   └── tls_client.c           # Phase 1 TLS client: sends numbered RECORDs, checks each ACK
 ├── hardware/                  # Wiring and boards
 │   ├── README.md              # Rules and file states
@@ -195,7 +199,7 @@ pqc_drone_link/
 │   ├── test_store.c           # store.c: file layout, dedup, restart, full, torn tail, corruption
 │   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09 over a socketpair
 │   ├── test_tcp.c             # tcp.c on loopback
-│   ├── e2e_tls_link.sh        # tls_server + tls_client as real processes: A, B, T03, T04
+│   ├── e2e_tls_link.sh        # tls_server + tls_client: A, B, T03, T04, T05, restart, torn/foreign/full store
 │   ├── e2e_bench.sh           # bench_handshake smoke test and failure paths
 │   ├── test_summarize.py      # summarize_handshakes.py: percentiles, warm-up exclusion
 │   ├── positive_and_attack_tests.csv  # T01-T10 results (header only so far)
