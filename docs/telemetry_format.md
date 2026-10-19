@@ -131,8 +131,8 @@ The application sends length-prefixed messages inside the TLS stream. Big-endian
 | Parameter | Value | Why |
 |-----------|-------|-----|
 | Sample rate | 10 Hz | Build Guide gate L2 |
-| Queue capacity | 10,000 records *(proposed)* | About 1,000 s of data, over 16 times a 60 s outage (600 records). About 330 kB of payload, so far below any microSD limit |
-| Overflow policy | Reject **new** records and count them *(proposed)* | Never discard a record already promised durable. The count is reported as a number |
+| Queue capacity | 10,000 **un-ACKed** records, set with `--queue-max` *(proposed)* | About 1,000 s of data, over 16 times a 60 s outage (600 records). 40 bytes per entry (the 36-byte RECORD plus the CRC-32), so 400 kB at capacity, far below any microSD limit. The limit counts records not yet ACKed, not entries in the file, because ACKed entries stay in the file until it is compacted |
+| Overflow policy | Reject **new** records, count them, and still consume their `seq` *(proposed)* | Never discard a record already promised durable. The `seq` gap and the count are the visible record of the overflow (section 6 allows gaps) |
 | Store | Append-only file with `fsync` per record, CRC-32 per entry (decided 2026-10-17, section 6) | Survives a power cut mid-write: only the last entry can be torn, and it was never ACKed. Per-record fsync cost on microSD still to be measured in L7 |
 
 Each reliability test records: queue capacity, sample rate, test duration, number of
@@ -141,6 +141,17 @@ drain time. Overflow is reported, never hidden.
 
 Test durations *(proposed)*: 60 s outage runs repeated 10 times; loss runs at 0, 10 and 30%
 of 10 minutes each, repeated 10 times. Confirm counts with the advisor.
+
+Queue-full test (L9) *(proposed)*: run with `--queue-max 100` and the server down for 30 s, so
+the result is deterministic: 300 records generated, 100 queued, 200 rejected and counted, with
+the `seq` gaps reported. Run the full 10,000 capacity once as a separate check, since filling
+it takes about 17 minutes at 10 Hz.
+
+Deleting after an ACK *(proposed, to settle before the queue module is written)*: the file stays
+append-only. Pi A keeps a persisted ACK cursor (`acked_through`) and compacts by writing a new
+file, `fsync`ing it and renaming it over the old one, so a crash leaves either the old or the
+new file whole. A crash between the server's commit and the cursor write is safe: the record is
+resent and Pi B deduplicates it (section 6).
 
 ## 8. Trust configuration
 

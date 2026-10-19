@@ -287,8 +287,9 @@ Still open:
 - [x] Persistent store: an append-only file with `fsync`, not SQLite (team decision 2026-10-17;
       [docs/telemetry_format.md](docs/telemetry_format.md) sections 6 and 7). Pi B's store is
       `src/store/`; the client queue will follow the same rules
-- [ ] Queue capacity, overflow policy and test durations (proposed in
-      [docs/telemetry_format.md](docs/telemetry_format.md))
+- [x] Queue capacity, overflow policy and test durations: 10,000 un-ACKed records, reject new
+      and count (2026-10-19; still *(proposed)* until the advisor confirms,
+      [docs/telemetry_format.md](docs/telemetry_format.md) section 7)
 - [ ] Confirm: no rekey, no command channel, one-way server authentication (advisor Q6, Q8)
 - [ ] Reuse the existing logger for evidence CSVs? (advisor Q15). The timer is used; the benchmark
       writes its own per-attempt CSV because the logger's fixed columns do not fit
