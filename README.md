@@ -57,8 +57,8 @@ Pis. The server commits every record to a durable, deduplicated store before ACK
 keeps every record in a persistent queue until it is ACKed (`src/queue/`, `pi/tls_client.c`; outage T06,
 client restart T07 and queue-full L9 run end to end on one machine). `scripts/run_loss_test.sh` runs the
 packet-loss test (T08) with `tc netem` in a private namespace, no root needed; first runs delivered every
-record at 0, 10 and 30% loss (dev machine, not a result). Still missing: server-side benchmark costs,
-the full-size T08 runs, and everything on the Pico, sensor and display side (Phase 2). Details and next steps: [docs/design_notes.md](docs/design_notes.md).
+record at 0, 10 and 30% loss (dev machine, not a result). The handshake benchmark now measures the server's
+CPU and memory as well as the client's. Still missing: the full-size T08 and T10 runs, and everything on the Pico, sensor and display side (Phase 2). Details and next steps: [docs/design_notes.md](docs/design_notes.md).
 
 `src/` also keeps the helpers from the earlier work: error codes, RNG and secret-wiping helpers, a
 monotonic timer and a CSV event logger, with tests. The earlier custom ML-KEM + Ascon stack was
@@ -126,7 +126,8 @@ and `/tmp/queue.dat` to start from zero.
 ### Running the handshake benchmark (T10)
 
 Needs a **Release** build. It starts a configuration-A and a configuration-B server on this machine,
-alternates handshakes between them, and writes the raw CSVs, an environment record and a summary:
+alternates handshakes between them, and writes the raw client and server CSVs, an environment record and
+a summary with both sides' CPU, memory and bytes:
 
 ```sh
 scripts/run_handshake_bench.sh $HOME/opt/openssl-3.5.9 build \
@@ -208,7 +209,8 @@ pqc_drone_link/
 │   │   └── rng.c              # OS CSPRNG (getrandom())
 │   └── metrics/
 │       ├── timer.h / timer.c  # Monotonic wall time and process CPU time
-│       └── logger.h / logger.c # Buffers events in memory, writes CSV logs
+│       ├── logger.h / logger.c # Buffers events in memory, writes CSV logs
+│       └── mem.h / mem.c      # Live heap in use and peak RSS (handshake benchmark, both ends)
 ├── pico/                      # Pico firmware (Phase 2, not started); README lists the jobs and prerequisites
 ├── pi/                        # Services in C17; README lists the programs and what is still to come
 │   ├── tls_server.c           # Phase 1 TLS server: stores each RECORD durably, then ACKs it
@@ -222,7 +224,7 @@ pqc_drone_link/
 │   └── GATE_RECORD_TEMPLATE.md # Copy for each gate: setup, expected vs observed, sign-off
 ├── tests/
 │   ├── test_rng.c             # rng_bytes(), secure_wipe(), ct_memcmp()
-│   ├── test_metrics.c         # timer.c and logger.c
+│   ├── test_metrics.c         # timer.c, logger.c and mem.c
 │   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
 │   ├── test_store.c           # store.c: file layout, dedup, restart, full, torn tail, corruption
 │   ├── test_fileio.c          # fileio.c: CRC-32 check value, big-endian, pread/pwrite, dir sync
@@ -313,7 +315,8 @@ Decided by the advisor on 2026-10-10 ([docs/advisor_questions.md](docs/advisor_q
 Still open:
 
 - [ ] Which computers run Phase 1 for the final measurements (so far one development machine)
-- [ ] Server-side CPU and memory in the T10 benchmark (the harness measures the client only)
+- [x] Server-side CPU and memory in the T10 benchmark: `tls_server --handshake-csv`, shown by
+      `summarize_handshakes.py --server` (step 16, 2026-10-19; dev machine only)
 - [ ] Pico firmware language (C SDK or MicroPython). The Pi services are decided: C17
       (team decision 2026-10-10, still to be confirmed with the advisor, Q11)
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?

@@ -31,7 +31,8 @@ looks the way it does.
 | 13   | Persistent client queue: append-only file, ACK entries, compaction, seq owner | `src/queue/queue.h/.c`, `src/common/fileio.h/.c` | `tests/test_queue.c`, `tests/test_fileio.c` | Done |
 | 14   | Client uses the queue: window of 32, ACK timeout, reconnect backoff, outage and restart tests | `pi/tls_client.c` | `tests/e2e_tls_link.sh` (17 cases) | Done |
 | 15   | Packet-loss runs (T08): `tc netem` in a private namespace, per-run CSV, summary; handshake timeouts are retried | `scripts/run_loss_test.sh`, `scripts/summarize_loss.py`, `experiments/configs/t08_loss_loopback.conf`, `src/tls/tls_link.c`, `pi/tls_client.c` | `tests/e2e_loss.sh`, `tests/test_summarize_loss.py`, `tests/test_tls_link.c` | Done |
-| 16   | Server-side CPU and memory in the T10 benchmark | (not started) | — | Next |
+| 16   | Server-side CPU and memory in the T10 benchmark: `tls_server --handshake-csv`, `mem` module, `--server` in the summary | `src/metrics/mem.h/.c`, `pi/tls_server.c`, `scripts/summarize_handshakes.py`, `scripts/run_handshake_bench.sh` | `tests/test_metrics.c`, `tests/test_summarize.py`, `tests/e2e_bench.sh` (25 checks) | Done |
+| 17   | Full-size runs on a quiet machine (T10 100+ handshakes, T08 10 x 10 min); then packet captures for byte totals with headers | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Phase 1 (computers only, advisor 2026-10-16) is implemented through step 12 below on `main`.
@@ -226,7 +227,7 @@ temperature and frequency where available).
 attempt's latency; `fopen(..., "wx")` makes "never overwrite" an OS guarantee; percentiles are
 nearest-rank and unit-tested on `1..100`.
 
-**Follow-ups.** Measure server-side CPU and memory (T10 asks for both ends of the cost); take packet
+**Follow-ups.** Server-side CPU and memory are measured since step 16; take packet
 captures for byte totals with headers on the real link; run on the Pis with board IDs and put the
 output in `evidence/`; add packet-loss runs once `tc netem` is set up; decide Q15 (logger reuse).
 
@@ -424,6 +425,53 @@ the per-run lines (a deliberately broken runner exposed it).
 **Follow-ups.** Real runs: 10 repetitions of 10 minutes at 10 Hz, then on the Pis with the method Q10
 settles. Look at whether a longer ACK timeout (or resending without reconnecting) shortens drain at 30%.
 Time per message under loss (sensor-to-display latency) is a separate measurement.
+
+---
+
+## T10 server-side cost (step 16)
+
+**What it is.** The benchmark client measured only its own side. `tls_server --handshake-csv FILE` now
+writes one row per accepted connection (spec section 10, "Server side"): the CPU time of the server
+process over `tls_accept()`, the live heap the open connection holds, the handshake bytes received and
+sent, and the process peak RSS so far. `run_handshake_bench.sh` starts both servers with their own file
+(`*.server_A.csv`, `*.server_B.csv`) and `summarize_handshakes.py --server A=... --server B=...` prints a
+"server side" block under each configuration.
+
+**Design choices**
+
+- **The server logs itself, in its own file.** Client and server numbers stay in separate files
+  (CONTRIBUTING "Measurement and logging"). Joining rows by attempt number was rejected: the server does
+  not know the client's attempt numbers.
+- **Measure, then log.** Two readings (CPU, heap) around `tls_accept()`; the row is written and flushed
+  afterwards, so nothing is written inside the timed span and a server stopped with a signal loses no
+  rows. CPU time counts work, not waiting, so the wait for the client's first message is not in it.
+- **Warm-up is handled in the summarizer.** The server cannot know which handshakes were warm-up: rows
+  with `ok=0` are counted as failures, the first `--server-warmup` successes are dropped, and the summary
+  exits 1 if the server's count differs from the client's. A shift in alignment cannot pass silently.
+- **Client and server must agree on the bytes:** the client's transmitted bytes equal the server's
+  received bytes and the reverse, on every row (checked in `e2e_bench.sh`).
+- **Peak RSS is the whole process,** about 8.5 MB, dominated by the server's baseline, so A and B look the
+  same. The per-connection heap is the figure that separates them; the limit is written into the spec.
+- **New `mem` module** (`mem_heap_in_use`, `mem_peak_rss_kb`). `bench_handshake` had private copies of the
+  same two readings; it now uses the module. `fopen(..., "wx")` refuses an existing server file.
+- **Not an automated check:** that hybrid costs the server more CPU. The difference is small and noisy,
+  so a test on it would be flaky; the summary shows it instead.
+
+**First look (one dev-machine run of 100 per configuration, not a result).** Server medians: CPU 0.36 ms
+(A) vs 0.50 ms (B); heap held by the open connection 15.5 kB vs 21.6 kB; handshake bytes 273 received and
+756 sent (A) vs 1449 and 1844 (B), matching the client's own counts.
+
+**What to notice.** `volatile` in `test_mem` stops the compiler removing the allocation as dead code at
+`-O2`; a mutation check (zeroing the CPU reading, swapping rx and tx) failed two checks each, so they can
+fail; `mallinfo2` has two fields (`uordblks`, `hblkhd`) and the 16 MB test block exercises the mmap one.
+
+**Follow-ups.** Take the full-size runs (100+ handshakes on a quiet machine, then on the Pis). Packet
+captures for byte totals with headers. The transient peak memory inside a handshake is still not
+captured per attempt. **Known flaky test:** `e2e_loss` failed once in a full `ctest` run and could not be
+reproduced afterwards (25 direct runs and 30 repeated ctest runs passed; the failing check was not
+captured). If it fails again, keep the output: the runner prints each run and the checks name what they
+saw. Suspects: a 10% loss run that needs a SYN retransmission and runs close to a timeout, or machine load
+during the full suite.
 
 ---
 
@@ -629,3 +677,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-19 | Queue capacity and overflow proposed (10,000 un-ACKed records, reject new, still use the `seq`); spec section 7 updated. Step 13: `queue` module (`src/queue/`) and shared `fileio` (`src/common/`) verified, typed in and tested: layout, ACK entries, out-of-order ACKs, overflow, compaction, restart, torn tail, corruption, seq never reused, random model. New error codes -110 to -112. `ctest` 13/13. Next: use the queue in `tls_client` (step 14) |
 | 2026-10-19 | Step 14: `tls_client` uses the queue: `--queue`, `--rate-hz`, `--window`, `--backoff-ms`, `--deadline-ms`; reconnect with backoff after a lost session or failed TCP connect, handshake failure still fatal; ACKs checked against the oldest waiting record. `e2e_tls_link.sh` rewritten to 17 cases (T05 replay, T06 outage, T07 restart and SIGKILL, L9 overflow, lost link, window 1), all on one machine (not gate evidence). `ctest` 13/13. Next: loss emulation (T08) and server-side benchmark costs |
 | 2026-10-19 | Step 15: packet-loss runner for T08. `scripts/run_loss_test.sh` runs A and B at each loss level inside `unshare -Urn` namespaces with `tc netem` (no root); `summarize_loss.py` and `t08_loss_loopback.conf`. `tls_link` returns `PQC_ERR_TIMEOUT`/`PQC_ERR_IO` for a handshake that times out or hits a socket error, and `tls_client` retries those (other handshake failures stay fatal). `e2e_loss.sh` and `test_summarize_loss.py` added; `ctest` 15/15. One dev-machine repetition per cell delivered every record at 0, 10 and 30% (not a result). Next: server-side CPU and memory in the T10 benchmark (step 16) |
+| 2026-10-19 | Step 16: server-side T10 cost. `tls_server --handshake-csv` (CPU over `tls_accept()`, heap held by the open connection, bytes, peak RSS), new `src/metrics/mem` module (also used by `bench_handshake`), `--server` and `--server-warmup` in `summarize_handshakes.py`, `run_handshake_bench.sh` passes the files. `e2e_bench.sh` grows to 25 checks incl. client/server byte agreement; mutation-checked. `ctest` 15/15. One 100-handshake dev-machine run: server CPU 0.36 ms (A) vs 0.50 ms (B). `e2e_loss` failed once in a full run and did not reproduce (see step 16 follow-ups). Next: full-size runs on a quiet machine, then packet captures |

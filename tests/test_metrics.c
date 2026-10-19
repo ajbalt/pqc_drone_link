@@ -1,6 +1,6 @@
 /**
  * @file test_metrics.c
- * @brief Tests for timer.c and logger.c.
+ * @brief Tests for timer.c, logger.c and mem.c.
  *
  * Adversarial cases: config strings that would corrupt the CSV, an existing
  * log file that must not be overwritten, a full event buffer, unknown
@@ -9,10 +9,12 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common/errors.h"
 #include "metrics/logger.h"
+#include "metrics/mem.h"
 #include "metrics/timer.h"
 
 /** @brief Number of failed checks; nonzero fails the test. */
@@ -166,8 +168,49 @@ static void test_logger_roundtrip(void) {
   remove(TEST_LOG);
 }
 
+/** @brief Touch every page of @p p so it counts as resident. */
+static void touch(volatile char *p, size_t n) {
+  for (size_t i = 0; i < n; i += 4096) {
+    p[i] = 1;
+  }
+  p[n - 1] = 1;
+}
+
+/** @brief Heap in use rises by what is allocated and falls when it is freed;
+ *         peak RSS is positive and never falls. */
+static void test_mem(void) {
+  const size_t big =
+      16u << 20; /* large enough to be an mmap block, counted too */
+  int64_t before = 0, during = 0, after = 0;
+  CHECK(mem_heap_in_use(&before) == PQC_OK);
+  uint64_t rss1 = 0, rss2 = 0;
+  CHECK(mem_peak_rss_kb(&rss1) == PQC_OK);
+  CHECK(rss1 > 0);
+
+  volatile char *p = malloc(big);
+  CHECK(p != NULL);
+  if (p != NULL) {
+    touch(p, big);
+  }
+  CHECK(mem_heap_in_use(&during) == PQC_OK);
+  CHECK(during - before >= (int64_t)big);
+  CHECK(mem_peak_rss_kb(&rss2) == PQC_OK);
+  CHECK(rss2 >=
+        rss1 + (big / 1024) / 2); /* resident size grew by about 16 MB */
+  free((void *)p);
+
+  CHECK(mem_heap_in_use(&after) == PQC_OK);
+  CHECK(after < during);
+  CHECK(mem_peak_rss_kb(&rss1) == PQC_OK);
+  CHECK(rss1 >= rss2); /* the peak does not fall when memory is freed */
+
+  CHECK(mem_heap_in_use(NULL) == PQC_ERR_INVALID_ARG);
+  CHECK(mem_peak_rss_kb(NULL) == PQC_ERR_INVALID_ARG);
+}
+
 int main(void) {
   test_timer();
+  test_mem();
   test_logger_bad_config();
   test_logger_roundtrip();
 

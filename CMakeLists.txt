@@ -21,7 +21,7 @@ add_library(pqc_crypto STATIC src/crypto/rng.c)
 target_link_libraries(pqc_crypto PUBLIC pqc_common PRIVATE project_warnings)
 
 # Metrics
-add_library(pqc_metrics STATIC src/metrics/timer.c src/metrics/logger.c)
+add_library(pqc_metrics STATIC src/metrics/timer.c src/metrics/logger.c src/metrics/mem.c)
 target_link_libraries(pqc_metrics PUBLIC pqc_common PRIVATE project_warnings)
 
 # Application wire format: RECORD and ACK messages
@@ -108,7 +108,7 @@ if (PQC_BUILD_TLS)
 
     # Phase 1 programs and their end-to-end test (real processes over loopback)
     add_executable(tls_server pi/tls_server.c)
-    target_link_libraries(tls_server PRIVATE pqc_tls pqc_net pqc_proto pqc_store project_warnings)
+    target_link_libraries(tls_server PRIVATE pqc_tls pqc_net pqc_proto pqc_store pqc_metrics project_warnings)
     add_executable(tls_client pi/tls_client.c)
     target_link_libraries(tls_client PRIVATE pqc_tls pqc_net pqc_proto pqc_metrics pqc_queue project_warnings)
     add_test(NAME e2e_tls_link

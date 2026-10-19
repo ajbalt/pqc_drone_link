@@ -256,9 +256,22 @@ side only: both latencies above; client CPU time over the connect-to-handshake s
 bytes sent and received as counted by OpenSSL on the socket (the TLS byte stream, exact, without
 TCP/IP headers; a packet capture is still needed for totals with headers); and `heap_delta_bytes`,
 the live heap held by the open connection (`mallinfo2()`). The transient peak inside the handshake
-is not captured per attempt; the process peak RSS is printed once per run. Server-side CPU and
-memory are not measured yet. Percentiles are nearest-rank. Successes go to `*.ok.csv`, failures to
+is not captured per attempt; the process peak RSS is printed once per run. Percentiles are
+nearest-rank. Successes go to `*.ok.csv`, failures to
 `*.fail.csv`, and a run with fewer than 100 measured successes is marked INSUFFICIENT.
+
+**Server side** *(proposed, `tls_server --handshake-csv`)*. The server writes one row per accepted
+connection to its own file (`*.server_A.csv`, `*.server_B.csv`): CPU time of the server process over
+`tls_accept()` (work, not waiting for the client), the live heap the open connection holds
+(`mallinfo2()` before and after), handshake bytes received and sent (OpenSSL's own counters, so the
+client's transmitted bytes must equal the server's received bytes and the reverse), and the process
+peak RSS so far. A row is written and flushed after `tls_accept()` returns, never inside the timed
+span, and an existing file is refused. The server cannot know which handshakes were warm-up, so the
+summary counts rows that failed (`ok=0`), drops the first 5 successful rows per configuration, and
+reports an error if its count differs from the client's. The peak RSS is the whole process, so it is
+dominated by the server's baseline; the per-connection heap is the figure that separates A from B.
+Client and server numbers describe the same handshakes but stay in separate files and are never mixed
+with application telemetry.
 
 Handshake numbers never come from a run that was also carrying telemetry unless the report
 says so. Each benchmark run also records the Pi's CPU temperature and clock frequency, because the Pi 4

@@ -39,17 +39,16 @@
  */
 
 #include <errno.h>
-#include <malloc.h>
 #include <openssl/crypto.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "common/errors.h"
+#include "metrics/mem.h"
 #include "metrics/timer.h"
 #include "net/tcp.h"
 #include "tls/tls_link.h"
@@ -213,10 +212,10 @@ static int parse_args(int argc, char **argv, struct options *o) {
   return o->max_attempts <= MAX_ATTEMPTS_LIMIT ? 0 : -1;
 }
 
-/** @brief Heap bytes currently in use by this process (malloc and mmap). */
+/** @brief Heap bytes currently in use by this process (0 if unreadable). */
 static int64_t heap_in_use(void) {
-  struct mallinfo2 mi = mallinfo2();
-  return (int64_t)mi.uordblks + (int64_t)mi.hblkhd;
+  int64_t bytes = 0;
+  return mem_heap_in_use(&bytes) == PQC_OK ? bytes : 0;
 }
 
 /** @brief Copy @p src into @p dst with CSV-unsafe characters replaced. */
@@ -429,8 +428,8 @@ int main(int argc, char **argv) {
   werr |= fclose(okf) != 0;
   werr |= fclose(failf) != 0;
 
-  struct rusage ru;
-  long peak_kb = getrusage(RUSAGE_SELF, &ru) == 0 ? ru.ru_maxrss : -1;
+  uint64_t peak_u = 0;
+  long peak_kb = mem_peak_rss_kb(&peak_u) == PQC_OK ? (long)peak_u : -1;
   printf("run_id=%s build=%s\n", o.run_id, build_name());
   printf("openssl_runtime=\"%s\" openssl_compiled=\"%s\"\n",
          OpenSSL_version(OPENSSL_VERSION), OPENSSL_VERSION_TEXT);

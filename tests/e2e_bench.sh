@@ -11,7 +11,8 @@ check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; fail=1; fi; }
 start_server() { # config -> prints port
   local cfg=$1 log="$WORK/server_$1.log" port=""
   "$SERVER" --config "$cfg" --port 0 --cert "$CERTS/srv.crt" --key "$CERTS/srv.key" \
-            --store "$WORK/store_$1.dat" --timeout-ms 3000 > "$log" 2>/dev/null &
+            --store "$WORK/store_$1.dat" --timeout-ms 3000 \
+            --handshake-csv "$WORK/server_$1.csv" > "$log" 2>/dev/null &
   for _ in $(seq 1 50); do
     port=$(sed -n 's/^listening port=\([0-9]*\).*/\1/p' "$log")
     [ -n "$port" ] && break
@@ -41,6 +42,27 @@ check "hybrid sends more bytes than classical" '
 check "latencies are positive" '! tail -n +2 "$WORK/ok.csv" | awk -F, "\$6<=0 || \$7<=0 || \$7>\$6" | grep -q .'
 check "summary runs and reports both configs" 'python3 -I "$SUMM" "$WORK/ok.csv" "$WORK/fail.csv" --min 5 | grep -c "^== config" | grep -qx 2'
 check "summary marks too few rows INSUFFICIENT" '! python3 -I "$SUMM" "$WORK/ok.csv" --min 100 > /dev/null'
+
+# 1b. The server side: one row per handshake, all successful, costs positive, and what the
+# server counted matches what the client counted (client tx = server rx and the reverse).
+server_rows() { tail -n +2 "$WORK/server_A.csv"; tail -n +2 "$WORK/server_B.csv"; }
+rows_not_ok() { server_rows | awk -F, '$2!=1'; }
+rows_no_cost() { server_rows | awk -F, '$6<=0 || $10<=0'; }
+bytes_mismatch() { # config -> lines where client and server disagree
+  paste -d, <(tail -n +2 "$WORK/ok.csv" | awk -F, -v c="$1" '$2==c{print $9","$10}') \
+            <(tail -n +2 "$WORK/server_$1.csv" | awk -F, '{print $8","$9}') \
+    | awk -F, '$1!=$3 || $2!=$4'
+}
+check "server csv A and B each have 7 rows" '[ "$(tail -n +2 "$WORK/server_A.csv" | wc -l)" -eq 7 ] && [ "$(tail -n +2 "$WORK/server_B.csv" | wc -l)" -eq 7 ]'
+check "every server row is a successful handshake" '[ -z "$(rows_not_ok)" ]'
+check "server groups are x25519 and X25519MLKEM768" '[ "$(tail -n +2 "$WORK/server_A.csv" | cut -d, -f4 | sort -u | tr A-Z a-z)" = x25519 ] && [ "$(tail -n +2 "$WORK/server_B.csv" | cut -d, -f4 | sort -u)" = X25519MLKEM768 ]'
+check "server CPU time and peak RSS are positive" '[ -z "$(rows_no_cost)" ]'
+check "config A: client and server agree on the handshake bytes" '[ -z "$(bytes_mismatch A)" ]'
+check "config B: client and server agree on the handshake bytes" '[ -z "$(bytes_mismatch B)" ]'
+check "summary with --server prints the server side of both configs" '[ "$(python3 -I "$SUMM" "$WORK/ok.csv" "$WORK/fail.csv" --min 5 --server A="$WORK/server_A.csv" --server B="$WORK/server_B.csv" --server-warmup 2 | grep -c "server side: n=5")" -eq 2 ]'
+"$SERVER" --config A --port 0 --cert "$CERTS/srv.crt" --key "$CERTS/srv.key" \
+          --store "$WORK/store_x.dat" --handshake-csv "$WORK/server_A.csv" --max-conns 1 > /dev/null 2>&1
+check "a server refuses to overwrite an existing handshake csv" '[ $? -ne 0 ]'
 
 # 2. Existing output files are refused, not overwritten.
 "$BENCH" --host 127.0.0.1 --ca "$CERTS/ca.crt" --run-id smoke --port-a "$PA" \

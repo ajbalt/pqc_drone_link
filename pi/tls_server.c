@@ -6,6 +6,7 @@
  *   tls_server --config A|B --port N --cert srv.crt --key srv.key
  *              --store records.dat [--store-max 100000]
  *              [--bind 127.0.0.1] [--timeout-ms 5000] [--max-conns N]
+ *              [--handshake-csv costs.csv]
  *
  * --config A pins X25519, --config B pins X25519MLKEM768 (CONTRIBUTING.md rule
  * 11). --port 0 picks a free port, printed as "listening port=N". --max-conns
@@ -16,6 +17,12 @@
  * (rule 16, test T05). --store is required: there is no mode that ACKs
  * without storing. If the store fails, the server stops, so that a restart
  * reopens it and reads back what is really on disk.
+ *
+ * --handshake-csv writes one row per accepted connection with the server's
+ * side of the T10 cost: CPU time of this process over tls_accept(), the live
+ * heap the open connection holds, the handshake bytes, and the process peak
+ * RSS so far. Each row is written after tls_accept() has returned, never
+ * inside the timed span, and an existing file is refused.
  */
 
 #include <errno.h>
@@ -26,6 +33,8 @@
 #include <unistd.h>
 
 #include "common/errors.h"
+#include "metrics/mem.h"
+#include "metrics/timer.h"
 #include "net/tcp.h"
 #include "proto/wire.h"
 #include "store/store.h"
@@ -42,9 +51,23 @@ struct options {
   const char *cert;     /**< server certificate chain (PEM) */
   const char *key;      /**< server private key (PEM); never commit it */
   unsigned long timeout_ms;
-  unsigned long max_conns; /**< 0 = no limit */
-  const char *store;       /**< durable store file */
-  unsigned long store_max; /**< most records the store may hold */
+  unsigned long max_conns;   /**< 0 = no limit */
+  const char *store;         /**< durable store file */
+  unsigned long store_max;   /**< most records the store may hold */
+  const char *handshake_csv; /**< per-connection handshake cost CSV, or NULL */
+};
+
+/** @brief What one tls_accept() cost this process (T10, server side). */
+struct handshake_cost {
+  uint64_t cpu_ns;    /**< CPU time of this process over tls_accept() */
+  int64_t heap_delta; /**< live heap added by the open connection */
+  int clock_bad;      /**< 1 if a clock or heap reading failed */
+};
+
+/** @brief The optional per-connection cost log. */
+struct handshake_log {
+  FILE *f;            /**< NULL = not logging */
+  unsigned long conn; /**< connections logged so far */
 };
 
 /** @brief Why a connection ended. */
@@ -67,7 +90,8 @@ static void usage(const char *prog) {
   fprintf(stderr,
           "usage: %s --config A|B --port N --cert FILE --key FILE\n"
           "          --store FILE [--store-max N]\n"
-          "          [--bind ADDR] [--timeout-ms N] [--max-conns N]\n",
+          "          [--bind ADDR] [--timeout-ms N] [--max-conns N]\n"
+          "          [--handshake-csv FILE]\n",
           prog);
 }
 
@@ -97,6 +121,7 @@ static int parse_args(int argc, char **argv, struct options *o) {
   o->port = 0;
   o->store = NULL;
   o->store_max = 100000; /* (proposed) docs/telemetry_format.md section 7 */
+  o->handshake_csv = NULL;
   for (int i = 1; i < argc; i += 2) {
     if (i + 1 >= argc) {
       return -1;
@@ -133,6 +158,8 @@ static int parse_args(int argc, char **argv, struct options *o) {
       }
     } else if (strcmp(k, "--store") == 0) {
       o->store = v;
+    } else if (strcmp(k, "--handshake-csv") == 0) {
+      o->handshake_csv = v;
     } else if (strcmp(k, "--store-max") == 0) {
       if (parse_number(v, 100000000, &o->store_max) != 0 || o->store_max == 0) {
         return -1;
@@ -145,6 +172,57 @@ static int parse_args(int argc, char **argv, struct options *o) {
           o->store != NULL)
              ? 0
              : -1;
+}
+
+/**
+ * @brief Create the handshake cost CSV and write its header.
+ * @return 0 on success (also when @p path is NULL: logging is off), -1 if the
+ *         file cannot be created or already exists.
+ */
+static int hlog_open(struct handshake_log *h, const char *path) {
+  h->f = NULL;
+  h->conn = 0;
+  if (path == NULL) {
+    return 0;
+  }
+  /* "x": an existing result file is never overwritten. */
+  h->f = fopen(path, "wx");
+  if (h->f == NULL) {
+    return -1;
+  }
+  fprintf(h->f,
+          "conn,ok,rc,group,cipher,server_cpu_ns,heap_delta_bytes,bytes_rx,"
+          "bytes_tx,rss_peak_kb\n");
+  return fflush(h->f) == 0 ? 0 : -1;
+}
+
+/**
+ * @brief Write one row for a handshake that has just finished.
+ *
+ * Called after tls_accept() has returned, so the write is outside the timed
+ * span. The row is flushed at once, so a server stopped with a signal loses
+ * nothing.
+ */
+static void hlog_write(struct handshake_log *h, int rc,
+                       const struct tls_conn *conn,
+                       const struct handshake_cost *cost) {
+  if (h->f == NULL) {
+    return;
+  }
+  uint64_t rx = 0, tx = 0, rss = 0;
+  if (conn != NULL) {
+    tls_conn_bytes(conn, &rx, &tx); /* a failure leaves the zeros */
+  }
+  mem_peak_rss_kb(&rss);
+  h->conn++;
+  fprintf(h->f, "%lu,%d,%d,%s,%s,%llu,%lld,%llu,%llu,%llu\n", h->conn,
+          rc == PQC_OK && !cost->clock_bad, rc,
+          conn != NULL ? tls_conn_group(conn) : "",
+          conn != NULL ? tls_conn_cipher(conn) : "",
+          (unsigned long long)cost->cpu_ns, (long long)cost->heap_delta,
+          (unsigned long long)rx, (unsigned long long)tx,
+          (unsigned long long)rss);
+  fflush(h->f);
 }
 
 /**
@@ -220,9 +298,25 @@ static enum conn_end serve_messages(struct tls_conn *conn, struct store *st,
  * @return Why the connection ended (CONN_END_PROTOCOL for a failed handshake).
  */
 static enum conn_end handle_client(struct tls_ctx *ctx, int fd,
-                                   struct store *st) {
+                                   struct store *st,
+                                   struct handshake_log *hlog) {
   struct tls_conn *conn = NULL;
+  struct handshake_cost cost = {0};
+  uint64_t c0 = 0, c1 = 0;
+  int64_t h0 = 0, h1 = 0;
+
+  /* Only the span between the readings is the cost of the handshake. CPU time
+   * counts work, not waiting, so the wait for the client's first message is
+   * not in it. */
+  cost.clock_bad =
+      timer_cpu_ns(&c0) != PQC_OK || mem_heap_in_use(&h0) != PQC_OK;
   int rc = tls_accept(ctx, fd, &conn);
+  cost.clock_bad |=
+      timer_cpu_ns(&c1) != PQC_OK || mem_heap_in_use(&h1) != PQC_OK;
+  cost.cpu_ns = c1 - c0;
+  cost.heap_delta = h1 - h0;
+  hlog_write(hlog, rc, conn, &cost);
+
   if (rc != PQC_OK) {
     char err[160];
     tls_last_error(err, sizeof(err));
@@ -297,11 +391,23 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  struct handshake_log hlog;
+  if (hlog_open(&hlog, o.handshake_csv) != 0) {
+    fprintf(stderr, "cannot create %s (does it already exist?)\n",
+            o.handshake_csv);
+    store_close(st);
+    tls_ctx_free(ctx);
+    return 1;
+  }
+
   int lfd = -1;
   uint16_t port = 0;
   if (tcp_listen(o.bind, (uint16_t)o.port, &lfd) != PQC_OK ||
       tcp_local_port(lfd, &port) != PQC_OK) {
     fprintf(stderr, "cannot listen on %s:%lu\n", o.bind, o.port);
+    if (hlog.f != NULL) {
+      fclose(hlog.f);
+    }
     store_close(st);
     tls_ctx_free(ctx);
     return 1;
@@ -321,7 +427,7 @@ int main(int argc, char **argv) {
     /* A silent client must not hold the server forever. */
     enum conn_end end = CONN_END_PROTOCOL;
     if (tcp_set_timeout_ms(fd, (unsigned)o.timeout_ms) == PQC_OK) {
-      end = handle_client(ctx, fd, st);
+      end = handle_client(ctx, fd, st, &hlog);
     }
     close(fd);
     if (end == CONN_END_STORE_FAIL) {
@@ -334,6 +440,9 @@ int main(int argc, char **argv) {
   }
 
   close(lfd);
+  if (hlog.f != NULL) {
+    fclose(hlog.f);
+  }
   store_close(st);
   tls_ctx_free(ctx);
   return status;

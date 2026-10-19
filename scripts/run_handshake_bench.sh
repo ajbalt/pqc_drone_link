@@ -45,7 +45,8 @@ start_server() { # config -> port
   # The benchmark sends no RECORDs, so the store is never written while timing;
   # both servers get one because the server requires it (rule 15).
   "$B/tls_server" --config "$cfg" --port 0 --cert "$CERTS/srv.crt" --key "$CERTS/srv.key" \
-                  --store "$CERTS/store_$1.dat" --timeout-ms "$TMO" > "$log" 2>/dev/null &
+                  --store "$CERTS/store_$1.dat" --timeout-ms "$TMO" \
+                  --handshake-csv "$OUT/$RUN.server_$1.csv" > "$log" 2>/dev/null &
   for _ in $(seq 1 50); do
     port=$(sed -n 's/^listening port=\([0-9]*\).*/\1/p' "$log")
     [ -n "$port" ] && break
@@ -87,7 +88,11 @@ META="$OUT/$RUN.meta.txt"
 status=${PIPESTATUS[0]}
 { echo "--- after"; sensors after; } >> "$META"
 
+# The server rows are complete: the client waits for each server to close before the next
+# attempt, and a server writes its row before it closes.
 python3 -I "$here/summarize_handshakes.py" "$OUT/$RUN.ok.csv" "$OUT/$RUN.fail.csv" \
-    --min "$REPS" --csv "$OUT/$RUN.summary.csv" | tee "$OUT/$RUN.summary.txt" || status=1
+    --min "$REPS" --csv "$OUT/$RUN.summary.csv" --server "A=$OUT/$RUN.server_A.csv" \
+    --server "B=$OUT/$RUN.server_B.csv" --server-warmup "$WARM" \
+    | tee "$OUT/$RUN.summary.txt" || status=1
 echo "results: $OUT/$RUN.*"
 exit "$status"

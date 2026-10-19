@@ -84,6 +84,76 @@ with tempfile.TemporaryDirectory() as d:
         except FileExistsError:
             pass
 
+# --- Server side (tls_server --handshake-csv) ---------------------------------------------
+
+
+def srow(cpu_ms, ok=1, heap=1000, rx=100, tx=200, rss=5000):
+    return {"conn": "1", "ok": str(ok), "rc": "0" if ok else "-91", "group": "X25519",
+            "cipher": "C", "server_cpu_ns": str(int(cpu_ms * 1e6)),
+            "heap_delta_bytes": str(heap), "bytes_rx": str(rx), "bytes_tx": str(tx),
+            "rss_peak_kb": str(rss)}
+
+
+# Failed rows are counted, warm-up successes dropped, the peak RSS is the largest seen.
+rows = [srow(900, rss=4000), srow(900, rss=4100)] + [srow(i, rss=4200 + i) for i in range(1, 11)]
+rows.insert(3, srow(0, ok=0, rss=4100))
+sv = S.summarise_server(rows, 2)
+check(sv["n"] == 10, "two warm-up successes dropped, the failed row ignored")
+check(sv["failed"] == 1, "the failed row is counted")
+check(sv["metrics"]["server_cpu_ns"]["median"] == 5.5, "median of 1..10 ms")
+check(sv["metrics"]["server_cpu_ns"]["max"] == 10.0, "warm-up not in max")
+check(sv["peak_rss_kb"] == 4210, "peak RSS is the largest value in any row")
+check(S.summarise_server([srow(1, ok=0)], 0) is None, "no successful rows gives None")
+check(S.summarise_server([srow(1), srow(2)], 2) is None, "all rows warm-up gives None")
+
+check(S.parse_server_args(["A=x.csv", "B=y.csv"]) == {"A": "x.csv", "B": "y.csv"}, "parse --server")
+for bad in (["A"], ["=x"], ["A="], ["A=x", "A=y"]):
+    try:
+        S.parse_server_args(bad)
+        check(False, f"parse_server_args({bad}) should raise")
+    except ValueError:
+        pass
+
+# Through the CLI: matching counts pass, a mismatch is reported and fails, the CSV gains rows.
+with tempfile.TemporaryDirectory() as d:
+    ok = os.path.join(d, "ok.csv")
+    with open(ok, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(row("A", 1).keys()))
+        w.writeheader()
+        w.writerows([row("A", i) for i in range(1, 11)])
+
+    def write_server(name, rows):
+        path = os.path.join(d, name)
+        with open(path, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(srow(1).keys()))
+            w.writeheader()
+            w.writerows(rows)
+        return path
+
+    good = write_server("sa.csv", [srow(1, rss=100 + i) for i in range(12)])  # 2 warm-up + 10
+    short = write_server("sb.csv", [srow(1) for _ in range(5)])                # 2 warm-up + 3
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        check(S.main([ok, "--min", "10", "--server", f"A={good}", "--server-warmup", "2"]) == 0,
+              "matching server rows pass")
+    text = buf.getvalue()
+    check("server side: n=10" in text and "server CPU time" in text, "server block printed")
+    check("server peak RSS" in text and "111 kB" in text, "peak RSS printed")
+    with contextlib.redirect_stdout(io.StringIO()) as buf2:
+        check(S.main([ok, "--min", "10", "--server", f"A={short}", "--server-warmup", "2"]) == 1,
+              "a server count that differs from the client fails")
+    check("WARNING: server measured 3" in buf2.getvalue(), "mismatch is named")
+    out_csv = os.path.join(d, "summary.csv")
+    with contextlib.redirect_stdout(io.StringIO()):
+        S.main([ok, "--min", "10", "--server", f"A={good}", "--server-warmup", "2",
+                "--csv", out_csv])
+    with open(out_csv, newline="") as f:
+        metrics = [r["metric"] for r in csv.DictReader(f)]
+    check("server_server_cpu_ns" not in metrics and "server_cpu_ns" in metrics,
+          "server CPU row in the summary csv, name not doubled")
+    check("server_heap_delta_bytes" in metrics and "server_peak_rss_kb" in metrics,
+          "server heap and peak RSS rows in the summary csv")
+
 if failures:
     print(f"{failures} check(s) failed", file=sys.stderr)
     sys.exit(1)
