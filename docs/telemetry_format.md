@@ -105,6 +105,29 @@ The application sends length-prefixed messages inside the TLS stream. Big-endian
   between connection attempts (1 s up to 10 s *(proposed)*).
 - If an ACK is lost, Pi A resends the record. Pi B sees a `node`+`seq` it already has,
   sends the ACK again, and changes nothing else.
+- **How the Phase 1 client does it** *(proposed, `pi/tls_client.c`)*: it sends the oldest
+  `min(waiting, window)` records in order, then reads that many ACKs. Pi B ACKs in order, so each
+  ACK must be for the oldest waiting record; any other ACK, a bad message, a send or receive
+  error, or no ACK within the timeout closes the connection and counts a lost link. Resending on a
+  TCP stream that has stopped answering achieves nothing, so a timeout means reconnect, and
+  everything not yet ACKed is resent from the oldest record. A record leaves the queue only
+  through `queue_ack()` for a verified ACK (rule 15).
+- **Only a failed TCP connect or a lost session is retried.** A TLS handshake failure (wrong CA,
+  wrong hostname, group mismatch, policy mismatch) ends the run: no retry loop is allowed to
+  hide a T03 or T04 failure or to look like a downgrade attempt (rules 12 and 13). The queue file
+  survives, so a later run drains it.
+- Backoff starts at the initial value, doubles after each failed attempt up to the maximum, and
+  returns to the initial value once a connection has had an ACK. Window, ACK timeout, initial and
+  maximum backoff are command-line values (`--window`, `--timeout-ms`, `--backoff-ms`,
+  `--backoff-max-ms`), never constants.
+- **Phase 1 record source.** The client generates records at `--rate-hz` (default 10;
+  0 = all `--count` records at once) with zero IMU values. `--count 0` generates none and only
+  drains what the queue file already holds (the restart test, T07). Ticks missed while the client
+  waits for a slow ACK or connect are made up afterwards, so `ts_ms` can be late by up to the
+  timeout; this does not exist once real samples arrive from the Pico.
+- The client prints one summary line per run: records generated, accepted, rejected, ACKed and
+  still waiting, peak queue depth, lost links, queue capacity, rate, duration and drain time
+  (section 7). Exit status 0 only if nothing is waiting and nothing was rejected.
 
 ## 6. Deduplication and the OLED count
 

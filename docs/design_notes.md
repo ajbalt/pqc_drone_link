@@ -29,7 +29,8 @@ looks the way it does.
 | 11   | Durable store: append-only file, dedup by node+seq | `src/store/store.h/.c` | `tests/test_store.c` | Done |
 | 12   | Use the store in `tls_server` (ACK after commit, count) | `pi/tls_server.c` | `tests/e2e_tls_link.sh` | Done |
 | 13   | Persistent client queue: append-only file, ACK entries, compaction, seq owner | `src/queue/queue.h/.c`, `src/common/fileio.h/.c` | `tests/test_queue.c`, `tests/test_fileio.c` | Done |
-| 14   | Client uses the queue: window of 32, resend timeout, reconnect backoff, outage tests | `pi/tls_client.c` | `tests/e2e_tls_link.sh` | Next |
+| 14   | Client uses the queue: window of 32, ACK timeout, reconnect backoff, outage and restart tests | `pi/tls_client.c` | `tests/e2e_tls_link.sh` (17 cases) | Done |
+| 15   | Loss emulation (`tc netem`, T08) and server-side CPU/memory in the T10 benchmark | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Phase 1 (computers only, advisor 2026-10-16) is implemented through step 12 below on `main`.
@@ -175,13 +176,13 @@ covered here by raw bytes on a socketpair; repeat it through a proxy on the real
   *(proposed)*.
 - **The benchmark servers get a store too** (the server requires one); the benchmark sends no
   RECORDs, so the store is never written while timing.
-- **Stop-and-wait.** One record in flight; the window of 32 comes with the persistent queue.
+- **Stop-and-wait (superseded in step 14).** The first client had one record in flight; see "tls_client: queue, window, reconnect" below.
 - **IPv4 literals for `--host` and `--bind`.** The certificate name is checked by TLS
   (`--hostname`), not by DNS.
 - **`--port 0` and `--max-conns N`** let the end-to-end script start a server on a free port and
   have it stop by itself.
 - **The server closes the connection** on an unknown type, bad length, `seq` 0 or unknown node.
-- **No retry and no fallback in the client.** Any failure ends the run with a non-zero exit code.
+- **No retry and no fallback in the client (superseded in step 14).** Now only a failed TCP connect or a lost session is retried; a failed TLS handshake still ends the run.
 
 **What to notice.** The server checks a header's length before reading the payload; `TCP_NODELAY`
 keeps 12-36 byte messages from being batched; the client frees everything through one `goto done`
@@ -325,6 +326,59 @@ per-append and per-ACK fsync cost on the real medium.
 
 ---
 
+## tls_client: queue, window, reconnect (step 14)
+
+**What it is.** Pi A's send loop (spec section 5). The client makes numbered RECORDs at `--rate-hz`,
+puts each in the persistent queue (`queue_append()` assigns the `seq` and `fsync()`s), sends the oldest
+`--window` waiting records, reads that many ACKs, and removes a record only through `queue_ack()` for
+an ACK it has checked (rule 15). `--queue` is required, so there is no mode without a queue.
+`--count 0` sends only what the queue file already holds (the restart case).
+
+**Design choices**
+
+- **A timeout means reconnect, not resend on the same connection.** TCP is reliable; a stream that has
+  stopped answering is only fixed by a new one. Everything not yet ACKed goes again from the oldest
+  record, and the server deduplicates (rule 16).
+- **Batch send, then read, no `poll()`.** No change to `tls_link` was needed. A `poll()` loop would
+  need `SSL_has_pending()`: ACKs already inside OpenSSL's buffer make the socket look idle. The cost:
+  while the client waits for a slow ACK or connect, record ticks are missed and made up afterwards, so
+  `ts_ms` can be late by up to `--timeout-ms`. This disappears once real samples arrive from the Pico.
+- **Only a failed TCP connect or a lost session is retried. A TLS handshake failure ends the run**
+  (rules 12 and 13): a retry loop must not hide T03 or T04, or look like a downgrade attempt. A server
+  killed in the middle of a handshake therefore also ends the run; the queue survives, so a later run
+  drains it.
+- **ACKs must come in order, each for the oldest waiting record.** Anything else drops the connection
+  (`bad_ack`). The server ACKs in order today; relax this if that changes.
+- **Backoff** doubles from `--backoff-ms` to `--backoff-max-ms` and resets once a connection has had
+  an ACK, so a server that accepts and then closes (store full) does not cause a reconnect storm.
+- **Defaults** are the spec's proposed values: window 32, ACK timeout 2 s, backoff 1 s to 10 s, 10 Hz,
+  queue 10,000. All are options, none are constants (CONTRIBUTING "Protocol rules").
+- **Exit status 0 only if nothing is waiting and nothing was rejected.** The `done` line prints the
+  section 7 evidence fields: generated, accepted, rejected, ACKed, pending, peak, lost links, capacity,
+  rate, duration and drain time.
+- **`--deadline-ms`** exists so a run against a dead server ends (the outage and full-store tests).
+
+**The end-to-end script** (`tests/e2e_tls_link.sh`, 17 cases, one machine, not gate evidence) now has
+T05 as a real replay (the queue file is copied before the first drain and put back for the second),
+T06 (50 records queued while the server is down, all delivered), T07 (client restart; seq carries on
+at 31, and a `SIGKILL` of the client mid-run), L9 (queue 20 of 100: 80 rejected and counted, 20
+delivered), a lost link (server killed and restarted on the same port and store, 40 of 40 stored), and
+window 1. A deliberately broken client that removed records without reading their ACKs failed 6 of the
+17, so the cases can fail.
+
+**What to notice.** The queue is the only copy of a record: the client asks `queue_get(i)` for each send
+and `queue_get(0)` for each ACK, so a crash or reconnect cannot leave two copies disagreeing. The
+`progressed` flag separates a healthy client that lost one connection from a dead server. In the shell
+script, `timeout` is a separate process, so `kill -9` on it leaves the client running (use
+`pkill -9 -P`); later options override earlier ones, which lets one helper set test defaults.
+
+**Follow-ups.** Loss emulation (T08, `tc netem`) and its runs at 0, 10 and 30%. Replace the batch loop
+with `poll()` if `ts_ms` lateness matters. Measure per-append and per-ACK `fsync` cost on the real
+medium (L7). A fake server to test `bad_ack` and malformed ACK handling directly. Fill in the result
+rows in `tests/positive_and_attack_tests.csv` only from runs on the real platform.
+
+---
+
 ## Progress report (LaTeX)
 
 `docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
@@ -461,6 +515,9 @@ Mistakes we've hit so far, and how to recognise them next time.
 | `Permission denied` running a script | Typed-in files get mode 0644 | `chmod +x`, as `make_demo_certs.sh` has in git |
 | CLion marks `O_DIRECTORY` / `O_CLOEXEC` undefined, but `cmake --build build` is clean | They are POSIX.1-2008 names, hidden under strict `-std=c17` unless `_POSIX_C_SOURCE=200809L` is set. CLion's own configure had failed ("Could NOT find OpenSSL"), so its analyzer never got the project's defines | Add `-DOPENSSL_ROOT_DIR=$HOME/opt/openssl-3.5.9` to the CLion CMake profile and reload; trust the terminal build |
 | git diff shows "No newline at end of file" | Editor not adding a final newline | Editor setting + `clang-format -i` before committing |
+| Last end-to-end case fails and a server log shows `kill: No such process` | A block of the script was pasted twice, so two `start_server` calls ran; the first server kept the port, `SPID` pointed at the second (which could not bind), and `kill`/`wait` hit the wrong process | `diff -w` the typed script against the draft; a second `start_server` in one case is the sign; count the PASS lines (17) |
+| `kill -9` in a test leaves the program running | `timeout` is its own process; the signal reached `timeout`, not the client | `pkill -9 -P <timeout pid>` first, then `kill -9` the timeout |
+| `precommit` fails with "missing final newline" on a file that `diff -w` calls identical | `diff -w` ignores a missing last newline | Editor setting; `precommit` catches it |
 
 **Reading an "undefined reference" error:** the compiler only checks that
 a function is *declared*; the linker checks that it is *defined*
@@ -487,7 +544,9 @@ implement them.
       It exits (step 12).
 - [x] The client queue file never deletes or repairs damage before its last entry (step 13).
 - [ ] `store.c` still has private copies of the helpers now in `src/common/fileio.c`; switch it over.
-- [ ] `tls_client` must call `queue_ack()` only for a verified ACK whose `seq` it sent on this connection, and must resend in `queue_get()` order after a reconnect.
+- [x] `tls_client` calls `queue_ack()` only for a verified ACK for the oldest waiting record it sent, and resends in `queue_get()` order after a reconnect (step 14).
+- [ ] `tls_client` assumes Pi B ACKs in order; revisit if the server changes.
+- [ ] `tls_client` makes up missed record ticks after a slow ACK or connect, so `ts_ms` can be late; fix or document when the Pico supplies samples.
 
 ## Open decisions still pending
 
@@ -519,3 +578,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-17 | Store decided: append-only file with fsync (not SQLite). `store` module (`src/store/`) verified, typed in and tested: dedup by node+seq, restart, capacity, torn tail, bad CRC, foreign file. New error codes -100, -101. Spec sections 6, 7 and 11 updated. `ctest` 11/11. Not yet used by `tls_server`. Next: use the store in `tls_server` |
 | 2026-10-18 | Step 12: `tls_server` commits every RECORD to the store before its ACK (`--store` required, `--store-max`), logs new and duplicate counts per connection, exits on a store failure. `e2e_tls_link.sh` adds T05 (replay counted once), restart, torn tail, foreign store file and full store, all on one machine (not gate evidence). Benchmark scripts pass a store. `ctest` 11/11, 11 e2e cases. Next: persistent queue on the client |
 | 2026-10-19 | Queue capacity and overflow proposed (10,000 un-ACKed records, reject new, still use the `seq`); spec section 7 updated. Step 13: `queue` module (`src/queue/`) and shared `fileio` (`src/common/`) verified, typed in and tested: layout, ACK entries, out-of-order ACKs, overflow, compaction, restart, torn tail, corruption, seq never reused, random model. New error codes -110 to -112. `ctest` 13/13. Next: use the queue in `tls_client` (step 14) |
+| 2026-10-19 | Step 14: `tls_client` uses the queue: `--queue`, `--rate-hz`, `--window`, `--backoff-ms`, `--deadline-ms`; reconnect with backoff after a lost session or failed TCP connect, handshake failure still fatal; ACKs checked against the oldest waiting record. `e2e_tls_link.sh` rewritten to 17 cases (T05 replay, T06 outage, T07 restart and SIGKILL, L9 overflow, lost link, window 1), all on one machine (not gate evidence). `ctest` 13/13. Next: loss emulation (T08) and server-side benchmark costs |

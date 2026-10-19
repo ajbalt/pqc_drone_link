@@ -110,7 +110,7 @@ if (PQC_BUILD_TLS)
     add_executable(tls_server pi/tls_server.c)
     target_link_libraries(tls_server PRIVATE pqc_tls pqc_net pqc_proto pqc_store project_warnings)
     add_executable(tls_client pi/tls_client.c)
-    target_link_libraries(tls_client PRIVATE pqc_tls pqc_net pqc_proto pqc_metrics project_warnings)
+    target_link_libraries(tls_client PRIVATE pqc_tls pqc_net pqc_proto pqc_metrics pqc_queue project_warnings)
     add_test(NAME e2e_tls_link
             COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e_tls_link.sh $<TARGET_FILE:tls_server>
             $<TARGET_FILE:tls_client> ${CMAKE_BINARY_DIR}/certs/main ${CMAKE_BINARY_DIR}/certs/other)
