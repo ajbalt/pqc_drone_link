@@ -193,6 +193,34 @@ static int check_negotiated(const struct tls_ctx *ctx, SSL *ssl,
   return PQC_OK;
 }
 
+/**
+ * @brief Turn a failed SSL_connect() or SSL_accept() into one of our codes.
+ *
+ * A timeout or a socket error says only that the link is bad (packet loss, a
+ * stalled peer); it tells us nothing about the peer's identity or its group,
+ * so the caller may try again. An alert, a failed verification or a protocol
+ * error is final: retrying could hide a T03 or T04 failure (rules 12, 13).
+ */
+static int handshake_error(SSL *ssl, int rc, int as_client) {
+  switch (SSL_get_error(ssl, rc)) {
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+      /* The socket is blocking, so "would block" can only mean that
+       * SO_RCVTIMEO or SO_SNDTIMEO expired. */
+      return PQC_ERR_TIMEOUT;
+    case SSL_ERROR_SYSCALL:
+      return PQC_ERR_IO;
+    default:
+      break;
+  }
+  /* A bad certificate or hostname leaves a verify error behind. Tell it apart
+   * from other failures so T03 and T04 are not confused. */
+  if (as_client && SSL_get_verify_result(ssl) != X509_V_OK) {
+    return PQC_ERR_HS_AUTH;
+  }
+  return PQC_ERR_TLS_HANDSHAKE;
+}
+
 /** @brief Shared body of tls_connect() and tls_accept(). */
 static int handshake(struct tls_ctx *ctx, int fd, int as_client,
                      struct tls_conn **out) {
@@ -219,11 +247,7 @@ static int handshake(struct tls_ctx *ctx, int fd, int as_client,
 
   int rc = as_client ? SSL_connect(conn->ssl) : SSL_accept(conn->ssl);
   if (rc != 1) {
-    /* A bad certificate or hostname leaves a verify error behind. Tell it
-     * apart from other failures so T03 and T04 are not confused. */
-    int err = (as_client && SSL_get_verify_result(conn->ssl) != X509_V_OK)
-                  ? PQC_ERR_HS_AUTH
-                  : PQC_ERR_TLS_HANDSHAKE;
+    int err = handshake_error(conn->ssl, rc, as_client);
     SSL_free(conn->ssl);
     free(conn);
     return err;

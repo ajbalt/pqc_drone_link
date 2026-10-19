@@ -121,6 +121,8 @@ if (PQC_BUILD_TLS)
     find_program(PQC_OPENSSL_BIN openssl HINTS "${OPENSSL_INCLUDE_DIR}/../bin"
             NO_DEFAULT_PATH REQUIRED)
     get_filename_component(PQC_OPENSSL_LIBDIR "${OPENSSL_CRYPTO_LIBRARY}" DIRECTORY)
+    get_filename_component(PQC_OPENSSL_BINDIR "${PQC_OPENSSL_BIN}" DIRECTORY)
+    get_filename_component(PQC_OPENSSL_PREFIX "${PQC_OPENSSL_BINDIR}" DIRECTORY)
     foreach (name main other)
         add_test(NAME tls_demo_certs_${name}
                 COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${PQC_OPENSSL_LIBDIR}
@@ -143,9 +145,17 @@ if (PQC_BUILD_TLS)
             $<TARGET_FILE:bench_handshake> ${CMAKE_SOURCE_DIR}/scripts/summarize_handshakes.py
             ${CMAKE_BINARY_DIR}/certs/main)
     set_tests_properties(e2e_bench PROPERTIES FIXTURES_REQUIRED tls_certs)
+
+    # T08 loss runner: a tiny matrix through real processes in private network namespaces.
+    # Skipped (exit 77) where netem cannot be used.
+    add_test(NAME e2e_loss
+            COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e_loss.sh
+            ${CMAKE_SOURCE_DIR}/scripts/run_loss_test.sh ${PQC_OPENSSL_PREFIX} ${CMAKE_BINARY_DIR})
+    set_tests_properties(e2e_loss PROPERTIES SKIP_RETURN_CODE 77)
 endif ()
 
 find_package(Python3 COMPONENTS Interpreter)
 if (Python3_FOUND)
     add_test(NAME test_summarize COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tests/test_summarize.py)
+    add_test(NAME test_summarize_loss COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tests/test_summarize_loss.py)
 endif ()

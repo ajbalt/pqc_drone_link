@@ -96,9 +96,10 @@ mandatory system.
 12. **No downgrade and no fallback.** A hybrid-only peer must refuse a classical-only
     offer (test T04), and Configuration A must never be used when the system is configured
     for hybrid. Never retry a failed handshake with a weaker group, or without
-    verification. A client may retry a failed TCP connect or a lost
-    session with backoff, but a failed TLS handshake ends the run: no retry loop may hide a T03 or T04
-    failure.
+    verification. A client may retry a failed TCP connect, a lost
+    session, or a handshake that timed out or hit a socket error (`PQC_ERR_TIMEOUT`, `PQC_ERR_IO`), with
+    backoff and the same pinned settings. Any other handshake failure ends the run: no retry loop may
+    hide a T03 or T04 failure.
 13. **Always verify the peer.** The client verifies the certificate chain against the
     pinned demo CA and checks the hostname, and treats failure as fatal (test T03). Never
     set verify-none, and never turn on an "insecure" flag outside a clearly named test

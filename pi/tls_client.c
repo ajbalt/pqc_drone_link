@@ -17,9 +17,10 @@
  * sends what the queue file already holds. IMU values are zero (Phase 1).
  *
  * The client sends the oldest --window waiting records, then reads that many
- * ACKs. A failed TCP connect or a lost session is retried with backoff. A TLS
- * handshake failure ends the run: no loop may hide a failed verification or a
- * group mismatch, and nothing is retried with weaker settings (rules 12, 13).
+ * ACKs. A failed TCP connect, a handshake that times out or hits a socket
+ * error, or a lost session is retried with backoff. Any other handshake failure
+ * (an alert, a failed verification, a policy mismatch) ends the run: no loop
+ * may hide it, and nothing is retried with weaker settings (rules 12, 13).
  *
  * Exit status 0 only if nothing is waiting and nothing was rejected.
  */
@@ -90,7 +91,8 @@ struct client {
   unsigned long rejected;   /**< ...that it refused because it was full */
   unsigned long acked;      /**< records removed after their ACK */
   unsigned long lost_links; /**< sessions that ended in failure */
-  int fatal;                /**< 1 once a LINK_FATAL happened */
+  unsigned long connect_failures; /**< connection attempts that failed */
+  int fatal;                      /**< 1 once a LINK_FATAL happened */
 };
 
 /** @brief Print usage to stderr. */
@@ -318,6 +320,7 @@ static enum link_result connect_once(struct client *c) {
                        (unsigned)c->o.timeout_ms, &fd);
   if (rc != PQC_OK) {
     printf("connect_failed rc=%d\n", rc);
+    c->connect_failures++;
     return LINK_RETRY;
   }
   struct tls_conn *conn = NULL;
@@ -325,8 +328,16 @@ static enum link_result connect_once(struct client *c) {
   if (rc != PQC_OK) {
     char err[160];
     tls_last_error(err, sizeof(err));
-    printf("handshake_failed rc=%d err=\"%s\"\n", rc, err);
     close(fd);
+    /* A timeout or a socket error says only that the link is bad (packet loss,
+     * a stalled server): try again on a new connection. Anything else is the
+     * peer's answer to our pinned settings and is final (rules 12, 13). */
+    if (rc == PQC_ERR_TIMEOUT || rc == PQC_ERR_IO) {
+      printf("handshake_retry rc=%d\n", rc);
+      c->connect_failures++;
+      return LINK_RETRY;
+    }
+    printf("handshake_failed rc=%d err=\"%s\"\n", rc, err);
     return LINK_FATAL;
   }
   c->fd = fd;
@@ -529,11 +540,11 @@ static void print_summary(const struct client *c) {
   printf(
       "done generated=%lu accepted=%lu rejected=%lu acked=%lu pending=%llu "
       "peak=%llu next_seq=%llu lost_links=%lu capacity=%lu rate_hz=%lu "
-      "duration_ms=%.1f drain_ms=%.1f\n",
+      "duration_ms=%.1f drain_ms=%.1f connect_failures=%lu\n",
       c->generated, c->accepted, c->rejected, c->acked,
       (unsigned long long)st.pending, (unsigned long long)st.peak_pending,
       (unsigned long long)st.next_seq, c->lost_links, c->o.queue_max,
-      c->o.rate_hz, duration_ms, drain_ms);
+      c->o.rate_hz, duration_ms, drain_ms, c->connect_failures);
 }
 
 /** @brief Program entry point. */

@@ -112,10 +112,13 @@ The application sends length-prefixed messages inside the TLS stream. Big-endian
   TCP stream that has stopped answering achieves nothing, so a timeout means reconnect, and
   everything not yet ACKed is resent from the oldest record. A record leaves the queue only
   through `queue_ack()` for a verified ACK (rule 15).
-- **Only a failed TCP connect or a lost session is retried.** A TLS handshake failure (wrong CA,
-  wrong hostname, group mismatch, policy mismatch) ends the run: no retry loop is allowed to
-  hide a T03 or T04 failure or to look like a downgrade attempt (rules 12 and 13). The queue file
-  survives, so a later run drains it.
+- **Only a bad link is retried.** A failed TCP connect, a TLS handshake that times out or hits a
+  socket error (`PQC_ERR_TIMEOUT`, `PQC_ERR_IO`: packet loss, a stalled server) and a lost session
+  are retried with backoff. Every other handshake failure (an alert, wrong CA, wrong hostname, group
+  or policy mismatch) ends the run: no retry loop is allowed to hide a T03 or T04 failure or to look
+  like a downgrade attempt (rules 12 and 13), and nothing is ever retried with weaker settings. The
+  queue file survives, so a later run drains it. A peer that accepts TCP but never answers TLS is
+  retried until `--deadline-ms`.
 - Backoff starts at the initial value, doubles after each failed attempt up to the maximum, and
   returns to the initial value once a connection has had an ACK. Window, ACK timeout, initial and
   maximum backoff are command-line values (`--window`, `--timeout-ms`, `--backoff-ms`,
@@ -166,6 +169,16 @@ drain time. Overflow is reported, never hidden.
 
 Test durations *(proposed)*: 60 s outage runs repeated 10 times; loss runs at 0, 10 and 30%
 of 10 minutes each, repeated 10 times. Confirm counts with the advisor.
+
+How the T08 loss runs are done *(proposed, `scripts/run_loss_test.sh`)*: `tc netem` drops packets
+at the given percentage on the interface, in both directions, so a request and its answer can each
+be lost. A run is delivered if nothing is still waiting and the records stored on Pi B equal the
+records the client accepted. Every run is reported, delivered or not, with its lost sessions, failed
+connection attempts, TCP retransmissions, peak queue depth and drain time; a group of fewer than 10
+runs is marked INSUFFICIENT. A and B alternate within each loss level. The loss method is recorded
+with each run (advisor Q10). On a development machine it is `netem` on the loopback interface inside
+a private network namespace with the MTU set to 1500, so messages are split into packets as on
+Ethernet or Wi-Fi; on the Pis it is `netem` on the interface or the access point.
 
 Queue-full test (L9) *(proposed)*: run with `--queue-max 100` and the server down for 30 s, so
 the result is deterministic: 300 records generated, 100 queued, 200 rejected and counted, with

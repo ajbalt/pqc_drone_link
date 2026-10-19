@@ -43,6 +43,7 @@ enum serve_mode {
   SERVE_ECHO,   /**< read one RECORD, ACK it */
   SERVE_TAMPER, /**< expect the next read to fail (corrupted TLS record) */
   SERVE_SILENT, /**< say nothing for a while (client times out) */
+  SERVE_MUTE,   /**< never start the handshake (client times out in it) */
 };
 
 /** @brief Server exit codes the parent can tell apart. */
@@ -91,6 +92,10 @@ static void run_server(int fd, const struct scenario *sc) {
   struct tls_conn *conn = NULL;
   if (tls_ctx_new_server(&cfg, &ctx) != PQC_OK) {
     _exit(EXIT_NO_CTX);
+  }
+  if (sc->mode == SERVE_MUTE) {
+    sleep(1); /* hold the socket open and say nothing */
+    _exit(EXIT_SERVED);
   }
   if (tls_accept(ctx, fd, &conn) != PQC_OK) {
     _exit(EXIT_NO_HANDSHAKE);
@@ -199,6 +204,10 @@ static struct result run_scenario(const struct scenario *sc) {
     struct tls_conn *conn = NULL;
     res.client_rc = tls_ctx_new_client(&cfg, &ctx);
     if (res.client_rc == PQC_OK) {
+      if (sc->mode == SERVE_MUTE) {
+        struct timeval tv = {.tv_sec = 0, .tv_usec = 200000};
+        setsockopt(sv[0], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+      }
       res.client_rc = tls_connect(ctx, sv[0], &conn);
     }
     if (res.client_rc == PQC_OK) {
@@ -319,6 +328,18 @@ static void test_timeout(void) {
   CHECK(r.client_rc == PQC_ERR_TIMEOUT);
 }
 
+/** @brief A peer that never answers the handshake is a timeout, not a policy
+ *         failure, so a client may try again on a new connection. */
+static void test_handshake_timeout(void) {
+  struct scenario s = {TLS_GROUP_X25519, TLS_GROUP_X25519, NULL, "relay.test",
+                       SERVE_MUTE};
+  s.ca_dir = cert_dir;
+  struct result r = run_scenario(&s);
+  CHECK(r.client_rc == PQC_ERR_TIMEOUT);
+  CHECK(r.group[0] == '\0'); /* no handshake finished */
+  CHECK(r.server_exit == EXIT_SERVED);
+}
+
 /** @brief Bad arguments and bad files are rejected without a crash. */
 static void test_bad_input(void) {
   char ca[512], cert[512], key[512];
@@ -409,6 +430,7 @@ int main(int argc, char **argv) {
   test_identity();
   test_tamper();
   test_timeout();
+  test_handshake_timeout();
 
   if (failures != 0) {
     fprintf(stderr, "%d check(s) failed\n", failures);

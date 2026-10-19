@@ -30,7 +30,8 @@ looks the way it does.
 | 12   | Use the store in `tls_server` (ACK after commit, count) | `pi/tls_server.c` | `tests/e2e_tls_link.sh` | Done |
 | 13   | Persistent client queue: append-only file, ACK entries, compaction, seq owner | `src/queue/queue.h/.c`, `src/common/fileio.h/.c` | `tests/test_queue.c`, `tests/test_fileio.c` | Done |
 | 14   | Client uses the queue: window of 32, ACK timeout, reconnect backoff, outage and restart tests | `pi/tls_client.c` | `tests/e2e_tls_link.sh` (17 cases) | Done |
-| 15   | Loss emulation (`tc netem`, T08) and server-side CPU/memory in the T10 benchmark | (not started) | — | Next |
+| 15   | Packet-loss runs (T08): `tc netem` in a private namespace, per-run CSV, summary; handshake timeouts are retried | `scripts/run_loss_test.sh`, `scripts/summarize_loss.py`, `experiments/configs/t08_loss_loopback.conf`, `src/tls/tls_link.c`, `pi/tls_client.c` | `tests/e2e_loss.sh`, `tests/test_summarize_loss.py`, `tests/test_tls_link.c` | Done |
+| 16   | Server-side CPU and memory in the T10 benchmark | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Phase 1 (computers only, advisor 2026-10-16) is implemented through step 12 below on `main`.
@@ -343,10 +344,11 @@ an ACK it has checked (rule 15). `--queue` is required, so there is no mode with
   need `SSL_has_pending()`: ACKs already inside OpenSSL's buffer make the socket look idle. The cost:
   while the client waits for a slow ACK or connect, record ticks are missed and made up afterwards, so
   `ts_ms` can be late by up to `--timeout-ms`. This disappears once real samples arrive from the Pico.
-- **Only a failed TCP connect or a lost session is retried. A TLS handshake failure ends the run**
-  (rules 12 and 13): a retry loop must not hide T03 or T04, or look like a downgrade attempt. A server
-  killed in the middle of a handshake therefore also ends the run; the queue survives, so a later run
-  drains it.
+- **Only a bad link is retried.** A failed TCP connect, a lost session, and (since step 15) a handshake
+  that times out or hits a socket error are retried; every other handshake failure ends the run
+  (rules 12 and 13): a retry loop must not hide T03 or T04, or look like a downgrade attempt. The queue
+  survives, so a later run drains it. Step 14 first made *every* handshake failure fatal; the loss runs
+  showed that was too coarse (see step 15).
 - **ACKs must come in order, each for the oldest waiting record.** Anything else drops the connection
   (`bad_ack`). The server ACKs in order today; relax this if that changes.
 - **Backoff** doubles from `--backoff-ms` to `--backoff-max-ms` and resets once a connection has had
@@ -372,10 +374,56 @@ and `queue_get(0)` for each ACK, so a crash or reconnect cannot leave two copies
 script, `timeout` is a separate process, so `kill -9` on it leaves the client running (use
 `pkill -9 -P`); later options override earlier ones, which lets one helper set test defaults.
 
-**Follow-ups.** Loss emulation (T08, `tc netem`) and its runs at 0, 10 and 30%. Replace the batch loop
+**Follow-ups.** The real T08 runs (step 15 built the runner). Replace the batch loop
 with `poll()` if `ts_ms` lateness matters. Measure per-append and per-ACK `fsync` cost on the real
 medium (L7). A fake server to test `bad_ack` and malformed ACK handling directly. Fill in the result
 rows in `tests/positive_and_attack_tests.csv` only from runs on the real platform.
+
+---
+
+## T08 packet-loss runs (step 15)
+
+**What it is.** A runner that measures whether every accepted record is delivered under emulated loss
+(spec sections 7 and 9, T08). `scripts/run_loss_test.sh` reads `experiments/configs/t08_loss_loopback.conf`,
+and for each repetition, loss level and configuration (A and B side by side) starts `tls_server` and
+`tls_client` inside a fresh `unshare -Urn` user and network namespace, applies `tc netem loss N%` to that
+namespace's loopback, and writes one CSV row per run. `scripts/summarize_loss.py` groups the rows by
+(configuration, loss) and prints delivery, median, p95 and spread. Dev-machine only, not gate evidence.
+
+**Design choices**
+
+- **Unprivileged namespace, no root.** A new user and network namespace gives the script its own `lo` and
+  `CAP_NET_ADMIN` inside it, so `netem` works without `sudo`. Runs cannot disturb each other or the
+  machine, and the namespace's TCP counters hold exactly one run. The advisor's Q10 (netem on the Pis or
+  at the access point) is still open for the real runs; the loss method is recorded with every run.
+- **Loss applies to every packet in both directions,** so a request and its answer can each be lost.
+- **MTU set to 1500 on `lo`.** Loopback's 64 kB MTU would hide that the hybrid handshake spans more
+  packets than the classical one does on Ethernet or Wi-Fi.
+- **A run is delivered only if nothing is waiting, ACKed equals accepted and stored equals accepted.**
+  Stored comes from the server's store file size ((size - 8) / 40), not from server logs, which can be
+  missed when a FIN is delayed. Every run is reported, delivered or not; a missing value counts as not
+  delivered; a group with fewer than `min_runs` (10) runs is INSUFFICIENT.
+- **Proof the loss acted:** `RetransSegs` from `/proc/net/snmp` is a column of every row.
+- **`tls_link` now tells a bad link from a bad peer.** A handshake that times out or hits a socket error
+  returns `PQC_ERR_TIMEOUT` or `PQC_ERR_IO`; alerts, failed verification and policy mismatches keep their
+  codes. Without this the first lossy handshake would have ended the run, which contradicts T08.
+- **Dev-sized defaults** (200 records at 20 Hz, 3 repetitions, about 3 minutes); the config's comment gives
+  the spec's size (6000 records at 10 Hz, 10 repetitions).
+- **Smoke test skips (exit 77) where netem cannot run.**
+
+**First look (one repetition per cell, dev machine, not a result).** All 6 runs delivered everything. At
+30% loss the client lost 2 sessions per run and its queue took about 4 s to drain after the last record,
+because the 2 s ACK timeout is shorter than TCP's retransmission backoff at that loss rate; at 10% no
+sessions were lost. Do not quote these numbers: they are single runs.
+
+**What to notice.** The runner re-executes itself with `--inner` so one file holds both halves; `awk`
+finds the `RetransSegs` column by name from the header line; the first version of the smoke test's
+"netem is in the meta file" check passed with netem switched off, because it matched the probe line, not
+the per-run lines (a deliberately broken runner exposed it).
+
+**Follow-ups.** Real runs: 10 repetitions of 10 minutes at 10 Hz, then on the Pis with the method Q10
+settles. Look at whether a longer ACK timeout (or resending without reconnecting) shortens drain at 30%.
+Time per message under loss (sensor-to-display latency) is a separate measurement.
 
 ---
 
@@ -518,6 +566,7 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Last end-to-end case fails and a server log shows `kill: No such process` | A block of the script was pasted twice, so two `start_server` calls ran; the first server kept the port, `SPID` pointed at the second (which could not bind), and `kill`/`wait` hit the wrong process | `diff -w` the typed script against the draft; a second `start_server` in one case is the sign; count the PASS lines (17) |
 | `kill -9` in a test leaves the program running | `timeout` is its own process; the signal reached `timeout`, not the client | `pkill -9 -P <timeout pid>` first, then `kill -9` the timeout |
 | `precommit` fails with "missing final newline" on a file that `diff -w` calls identical | `diff -w` ignores a missing last newline | Editor setting; `precommit` catches it |
+| A smoke test passes with the thing it tests switched off | The check matched a line that a different part of the output also produces (the netem probe line in the meta file), so it never looked at the per-run lines | Break the code on purpose and see the test fail (mutation check); assert on something only the real effect produces (TCP retransmissions, exactly one qdisc line per lossy run) |
 
 **Reading an "undefined reference" error:** the compiler only checks that
 a function is *declared*; the linker checks that it is *defined*
@@ -579,3 +628,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-18 | Step 12: `tls_server` commits every RECORD to the store before its ACK (`--store` required, `--store-max`), logs new and duplicate counts per connection, exits on a store failure. `e2e_tls_link.sh` adds T05 (replay counted once), restart, torn tail, foreign store file and full store, all on one machine (not gate evidence). Benchmark scripts pass a store. `ctest` 11/11, 11 e2e cases. Next: persistent queue on the client |
 | 2026-10-19 | Queue capacity and overflow proposed (10,000 un-ACKed records, reject new, still use the `seq`); spec section 7 updated. Step 13: `queue` module (`src/queue/`) and shared `fileio` (`src/common/`) verified, typed in and tested: layout, ACK entries, out-of-order ACKs, overflow, compaction, restart, torn tail, corruption, seq never reused, random model. New error codes -110 to -112. `ctest` 13/13. Next: use the queue in `tls_client` (step 14) |
 | 2026-10-19 | Step 14: `tls_client` uses the queue: `--queue`, `--rate-hz`, `--window`, `--backoff-ms`, `--deadline-ms`; reconnect with backoff after a lost session or failed TCP connect, handshake failure still fatal; ACKs checked against the oldest waiting record. `e2e_tls_link.sh` rewritten to 17 cases (T05 replay, T06 outage, T07 restart and SIGKILL, L9 overflow, lost link, window 1), all on one machine (not gate evidence). `ctest` 13/13. Next: loss emulation (T08) and server-side benchmark costs |
+| 2026-10-19 | Step 15: packet-loss runner for T08. `scripts/run_loss_test.sh` runs A and B at each loss level inside `unshare -Urn` namespaces with `tc netem` (no root); `summarize_loss.py` and `t08_loss_loopback.conf`. `tls_link` returns `PQC_ERR_TIMEOUT`/`PQC_ERR_IO` for a handshake that times out or hits a socket error, and `tls_client` retries those (other handshake failures stay fatal). `e2e_loss.sh` and `test_summarize_loss.py` added; `ctest` 15/15. One dev-machine repetition per cell delivered every record at 0, 10 and 30% (not a result). Next: server-side CPU and memory in the T10 benchmark (step 16) |

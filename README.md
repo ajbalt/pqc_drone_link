@@ -55,8 +55,10 @@ covered by automated tests on a development machine. This is **not** gate eviden
 Pis. The server commits every record to a durable, deduplicated store before ACKing it
 (`src/store/`; replay T05, restart and torn-write cases run end to end on one machine). The client
 keeps every record in a persistent queue until it is ACKed (`src/queue/`, `pi/tls_client.c`; outage T06,
-client restart T07 and queue-full L9 run end to end on one machine). Still missing: packet-loss
-tests (T08), server-side benchmark costs, and everything on the Pico, sensor and display side (Phase 2). Details and next steps: [docs/design_notes.md](docs/design_notes.md).
+client restart T07 and queue-full L9 run end to end on one machine). `scripts/run_loss_test.sh` runs the
+packet-loss test (T08) with `tc netem` in a private namespace, no root needed; first runs delivered every
+record at 0, 10 and 30% loss (dev machine, not a result). Still missing: server-side benchmark costs,
+the full-size T08 runs, and everything on the Pico, sensor and display side (Phase 2). Details and next steps: [docs/design_notes.md](docs/design_notes.md).
 
 `src/` also keeps the helpers from the earlier work: error codes, RNG and secret-wiping helpers, a
 monotonic timer and a CSV event logger, with tests. The earlier custom ML-KEM + Ascon stack was
@@ -135,6 +137,22 @@ Results from a development machine are not gate evidence; record them in
 [docs/results.md](docs/results.md) with the platform. Do not commit raw logs from `results/`. To tidy it, run `scripts/clean_results.sh --keep 3`
 (a dry run; add `--apply` to delete old runs).
 
+### Running the packet-loss test (T08)
+
+Needs a **Release** build and a kernel that allows unprivileged user and network namespaces (no `sudo`).
+It runs `tls_server` and `tls_client` inside a private namespace per run, applies `tc netem` loss to that
+namespace's loopback at each level in the config, alternates A and B, and writes a per-run CSV, an
+environment record and a summary:
+
+```sh
+scripts/run_loss_test.sh $HOME/opt/openssl-3.5.9 build \
+    experiments/configs/t08_loss_loopback.conf results/
+```
+
+The default config is dev-sized (about 3 minutes, 3 repetitions) and is marked INSUFFICIENT against the
+spec's 10; its comments give the values for 10-minute runs. Exit status 77 means netem cannot be used here.
+Single dev-machine runs are not results and not gate evidence.
+
 ### Requirements for the mandatory system
 
 - Raspberry Pi 4B (4 GB) x2 with a 64-bit OS, Raspberry Pi Pico 2 x2, MPU-6050, an SSD1306
@@ -209,17 +227,20 @@ pqc_drone_link/
 │   ├── test_store.c           # store.c: file layout, dedup, restart, full, torn tail, corruption
 │   ├── test_fileio.c          # fileio.c: CRC-32 check value, big-endian, pread/pwrite, dir sync
 │   ├── test_queue.c           # queue.c: layout, ACKs, overflow, restart, compaction, torn tail, random model
-│   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09 over a socketpair
+│   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09, handshake timeout over a socketpair
 │   ├── test_tcp.c             # tcp.c on loopback
 │   ├── e2e_tls_link.sh        # tls_server + tls_client: A, B, T03, T04, T05, restart, torn/foreign/full store, T06, T07, L9, lost link
 │   ├── e2e_bench.sh           # bench_handshake smoke test and failure paths
+│   ├── e2e_loss.sh            # run_loss_test.sh smoke test: A and B at 0 and 10% loss (skips without netem)
 │   ├── test_summarize.py      # summarize_handshakes.py: percentiles, warm-up exclusion
+│   ├── test_summarize_loss.py # summarize_loss.py: delivery verdicts, grouping, percentiles
 │   ├── positive_and_attack_tests.csv  # T01-T10 results (header only so far)
 │   └── fault_injection.csv    # Outage, restart and loss results (header only so far)
 ├── experiments/
 │   ├── bench_handshake.c      # T10 client: many timed handshakes, A and B interleaved
 │   └── configs/               # One file per experiment; README lists the fields
-│       └── t10_handshake_loopback.conf  # Handshake benchmark on one machine
+│       ├── t10_handshake_loopback.conf  # Handshake benchmark on one machine
+│       └── t08_loss_loopback.conf       # Packet-loss runs (A and B at 0, 10, 30%) on one machine
 ├── scripts/
 │   ├── run_demo.sh            # (planned) assemble-and-run for another student
 │   ├── make_demo_certs.sh     # Demo CA and server certificate (backdated 1 day, 30 days)
@@ -229,7 +250,9 @@ pqc_drone_link/
 │   ├── run_handshake_bench.sh # Runs the T10 benchmark from a config file; writes CSVs, meta, summary
 │   ├── clean_results.sh       # Deletes old runs from results/ (dry run unless --apply)
 │   ├── summarize_handshakes.py # Median, p95, spread per configuration from the raw CSV
-│   ├── netem_setup.sh         # (planned) packet-loss emulation
+│   ├── run_loss_test.sh       # Runs the T08 loss test from a config file in private namespaces; writes CSV, meta, summary
+│   ├── summarize_loss.py      # Delivery, median, p95 per configuration and loss level from the per-run CSV
+│   ├── netem_setup.sh         # (planned) netem on the Pis or the access point
 │   ├── power_logger.py        # (planned) current/power sensor logging
 │   └── wiki_lint.py           # Health checks for the research wiki
 ├── expected_results.md        # (planned) what a correct run looks like
@@ -295,7 +318,8 @@ Still open:
       (team decision 2026-10-10, still to be confirmed with the advisor, Q11)
 - [ ] Current and power instrument: DMM only, or INA219/INA260; per-handshake energy needed?
       (advisor Q5)
-- [ ] Loss emulation: `tc netem` on the Pis or at the access point (advisor Q10)
+- [ ] Loss emulation: `tc netem` on the Pis or at the access point (advisor Q10). On a development
+      machine it is `netem` on loopback inside a private namespace (`scripts/run_loss_test.sh`)
 - [x] Persistent store: an append-only file with `fsync`, not SQLite (team decision 2026-10-17;
       [docs/telemetry_format.md](docs/telemetry_format.md) sections 6 and 7). Pi B's store is
       `src/store/`; Pi A's queue is `src/queue/` (step 13, same torn-tail rules)

@@ -95,9 +95,12 @@ void tls_ctx_free(struct tls_ctx *ctx);
  *         PQC_ERR_HS_AUTH (certificate chain or hostname rejected),
  *         PQC_ERR_TLS_HANDSHAKE (any other handshake failure, such as no
  *         shared group), PQC_ERR_TLS_POLICY (negotiated values differ from
- *         the pinned ones), PQC_ERR_TLS_INIT.
- * @warning Any failure is final: the caller must not retry with a weaker group
- *          or without verification (rule 12).
+ *         the pinned ones), PQC_ERR_TIMEOUT (the socket timeout expired
+ *         during the handshake), PQC_ERR_IO (socket error), PQC_ERR_TLS_INIT.
+ * @warning No failure may be retried with a weaker group or without
+ *          verification (rule 12). Only PQC_ERR_TIMEOUT and PQC_ERR_IO say
+ *          nothing about the peer, so only those may be tried again with the
+ *          same settings, on a new connection.
  */
 int tls_connect(struct tls_ctx *ctx, int fd, struct tls_conn **out);
 
@@ -107,7 +110,8 @@ int tls_connect(struct tls_ctx *ctx, int fd, struct tls_conn **out);
  * @param[in]  fd   Accepted, blocking socket.
  * @param[out] out  New connection; NULL on failure. Free with tls_conn_free().
  * @return PQC_OK, PQC_ERR_INVALID_ARG (NULL, bad fd, or a client context),
- *         PQC_ERR_TLS_HANDSHAKE, PQC_ERR_TLS_POLICY, PQC_ERR_TLS_INIT.
+ *         PQC_ERR_TLS_HANDSHAKE, PQC_ERR_TLS_POLICY, PQC_ERR_TIMEOUT,
+ *         PQC_ERR_IO, PQC_ERR_TLS_INIT.
  */
 int tls_accept(struct tls_ctx *ctx, int fd, struct tls_conn **out);
 
