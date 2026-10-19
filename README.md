@@ -200,6 +200,11 @@ pqc_drone_link/
 │   ├── queue/
 │   │   ├── queue.h            # Pi A durable queue: append-only file, ACK entries, compaction, seq owner
 │   │   └── queue.c
+│   ├── uart/
+│   │   ├── uart_port.h        # Raw 8N1 serial device: open, read with timeout (a pty works too)
+│   │   ├── uart_port.c
+│   │   ├── sample_source.h    # Pi A: UART bytes to records, counts bad frames and lost samples
+│   │   └── sample_source.c
 │   ├── store/
 │   │   ├── store.h            # Pi B durable store: append-only file + fsync, dedup by node+seq
 │   │   └── store.c
@@ -229,6 +234,8 @@ pqc_drone_link/
 │   ├── test_metrics.c         # timer.c, logger.c and mem.c
 │   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
 │   ├── test_uart_frame.c      # uart_frame.c: spec example frame, bit flips, lost/extra bytes, noise, false sync
+│   ├── test_uart_port.c       # uart_port.c: raw mode (all 256 bytes), timeout, stale bytes, peer gone (pty)
+│   ├── test_sample_source.c   # sample_source.c: gap rules, damage, wrap/reset, accounting over 1,200 frames (pty)
 │   ├── test_store.c           # store.c: file layout, dedup, restart, full, torn tail, corruption
 │   ├── test_fileio.c          # fileio.c: CRC-32 check value, big-endian, pread/pwrite, dir sync
 │   ├── test_queue.c           # queue.c: layout, ACKs, overflow, restart, compaction, torn tail, random model

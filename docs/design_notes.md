@@ -33,8 +33,9 @@ looks the way it does.
 | 15   | Packet-loss runs (T08): `tc netem` in a private namespace, per-run CSV, summary; handshake timeouts are retried | `scripts/run_loss_test.sh`, `scripts/summarize_loss.py`, `experiments/configs/t08_loss_loopback.conf`, `src/tls/tls_link.c`, `pi/tls_client.c` | `tests/e2e_loss.sh`, `tests/test_summarize_loss.py`, `tests/test_tls_link.c` | Done |
 | 16   | Server-side CPU and memory in the T10 benchmark: `tls_server --handshake-csv`, `mem` module, `--server` in the summary | `src/metrics/mem.h/.c`, `pi/tls_server.c`, `scripts/summarize_handshakes.py`, `scripts/run_handshake_bench.sh` | `tests/test_metrics.c`, `tests/test_summarize.py`, `tests/e2e_bench.sh` (25 checks) | Done |
 | 17   | Shared UART frame: encoder, sample packing, resynchronising parser (Pico A and Pi A compile the same file) | `src/proto/uart_frame.h/.c` | `tests/test_uart_frame.c` | Done |
-| 18   | Pi A sample source: read the UART (a pseudo-terminal in tests), turn frames into queue records, count `uart_bad_frames` and `uart_gap` | (not started) | — | Next |
-| 19   | Full-size runs on a quiet machine (T10 100+ handshakes, T08 10 x 10 min); then packet captures for byte totals with headers | (not started) | — | Next |
+| 18   | Pi A sample source: raw serial port, frames to records, counts of bad frames and lost samples (`uart_gap`) | `src/uart/uart_port.h/.c`, `src/uart/sample_source.h/.c` | `tests/test_uart_port.c`, `tests/test_sample_source.c` (pseudo-terminal as the Pico) | Done |
+| 19   | `tls_client --uart PATH`: records come from the sample source (poll the serial fd while waiting); a `fake_pico` tool that feeds a pty at 10 Hz with optional faults; end-to-end test through TLS | (not started) | — | Next |
+| 20   | Full-size runs on a quiet machine (T10 100+ handshakes, T08 10 x 10 min); then packet captures for byte totals with headers | (not started) | — | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Phase 1 (computers only, advisor 2026-10-16) is implemented through step 12 below on `main`.
@@ -524,6 +525,58 @@ spec; it can reuse this framing with its own payload.
 
 ---
 
+## sample_source.h: Pi A's source of sensor samples (step 18)
+
+**What it is.** The receiving end of spec section 2. `uart_port` opens a serial device raw (8N1, no echo,
+no newline translation, no flow control) and reads bytes with a timeout. `sample_source` feeds those bytes
+to the shared parser (step 17) and turns each good frame into the start of a `wire_record`: `pico_ms` and
+`imu` from the frame, `ts_ms` from Pi A's clock, `node` and `seq` left 0 for `queue_append()` (the queue
+owns the sequence numbers). It counts bad frames, noise bytes and missing samples. The tests use a
+pseudo-terminal as the Pico: they write frames built with the shared encoder to the pty master, and the
+source opens the slave exactly as it would open `/dev/serial0`.
+
+**Design choices**
+
+- **Gaps come from `pico_ms`, in unsigned 32-bit arithmetic,** so the wrap at 2^32 is not a gap. Rules
+  (spec section 2): `delta` >= `max_gap` (10 s proposed) is a `reset`; under half a period (including 0) is
+  `early`; at least 1.5 periods is `gaps` + 1 and `samples_lost` += round(`delta` / `period`) - 1; else on
+  time. Period and threshold are config values, checked at open (`max_gap` must exceed 2 x period; the sums
+  are 64-bit so a huge period cannot overflow).
+- **Samples lost to a damaged frame show up as a gap too** (the Pico stamped them, the cable lost them). Over
+  a 1,200-frame stream with dropped and damaged frames, `samples_lost` equals dropped + damaged exactly.
+- **A reset is not millions of lost samples:** when `pico_ms` goes backwards the unsigned difference is huge.
+- **`ts_ms` is when Pi A read the frame,** not when the Pico sampled: the driver holds bytes until we read
+  them. Same limitation as step 14; it goes away only with a timestamp from the driver.
+- **One record per `sample_source_next()` call;** the rest of a read are returned by later calls without
+  waiting, and a call can return 0 records before its timeout (a read that brought half a frame), so the
+  caller loops on its own clock. `sample_source_fd()` exposes the descriptor for `poll()` (step 19).
+- **`uart_port` is separate and small** (open, read, fd, close) because Pi B's display forwarder will need it
+  too; write support will be added then.
+- **Raw mode is set by clearing termios flags by hand:** `cfmakeraw()` is not in strict C17 + POSIX.
+  `tcgetattr()` failing with `ENOTTY` is how a regular file or `/dev/null` is refused. `O_NOCTTY` keeps the
+  port from becoming our controlling terminal. Stale bytes are flushed at open.
+- **No new error codes** (`PQC_ERR_IO`, `PQC_ERR_BAD_CONFIG`, `PQC_ERR_INVALID_ARG`).
+
+**What the tests check.** A table of 15 gap cases including both wraps and the threshold edges; all 256 byte
+values through the port unchanged (a cooked terminal would translate or swallow `0x0D`, `0x03`, `0x11`);
+five frames in one write; frames one byte at a time; noise, a wrong CRC and a missing frame counted; wrap,
+restart and early samples; the 1,200-frame accounting; a read timeout; the Pico side going away; NULL
+arguments. Five deliberate bugs (an off-by-one in lost samples, gaps not counted, signed wrap handling,
+newline translation left on, stale bytes not flushed) each failed tests; 40 repeats showed no flakes.
+
+**What to notice.** On Linux a pseudo-terminal drops bytes still queued when its master closes, so a test
+that closed the master straight after writing lost the second frame about once in a few runs; the fix is to
+let the bytes cross first. The same holds for a USB serial adapter being unplugged: the last bytes can be lost
+and the next frame resynchronises. Three of my first test expectations were wrong in the arithmetic (300 ms
+is 2 lost samples, not 3; a jump from 0 to 5000 ms is a 49-sample gap, not a restart; a period of
+0xFFFFFFFF is rightly refused).
+
+**Follow-ups.** Step 19: `tls_client --uart PATH`, and a `fake_pico` tool for demos and the L3 fault
+tests. The gap state is memory only, so the first sample after Pi A starts never counts a gap. Compare the
+counters with the Pico's own sample count on the real hardware (L3).
+
+---
+
 ## Progress report (LaTeX)
 
 `docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
@@ -663,6 +716,8 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Last end-to-end case fails and a server log shows `kill: No such process` | A block of the script was pasted twice, so two `start_server` calls ran; the first server kept the port, `SPID` pointed at the second (which could not bind), and `kill`/`wait` hit the wrong process | `diff -w` the typed script against the draft; a second `start_server` in one case is the sign; count the PASS lines (17) |
 | `kill -9` in a test leaves the program running | `timeout` is its own process; the signal reached `timeout`, not the client | `pkill -9 -P <timeout pid>` first, then `kill -9` the timeout |
 | `precommit` fails with "missing final newline" on a file that `diff -w` calls identical | `diff -w` ignores a missing last newline | Editor setting; `precommit` catches it |
+| A test using a pseudo-terminal fails about once in a few runs: the second frame never arrives | Linux drops bytes still queued when the pty master closes; the test closed it straight after writing | Wait for the bytes to cross (a short sleep or a read) before closing; repeat the test 40 times before trusting it |
+| `precommit` fails on Doxygen ("parameters of take_frame are not documented") while the build and tests pass | A static helper's comment documented one parameter of three; `-Wall -Wextra` does not check comments | Run `cmake --build build --target docs` (or `/precommit`) on every new file, not only the compiler and tests |
 | A smoke test passes with the thing it tests switched off | The check matched a line that a different part of the output also produces (the netem probe line in the meta file), so it never looked at the per-run lines | Break the code on purpose and see the test fail (mutation check); assert on something only the real effect produces (TCP retransmissions, exactly one qdisc line per lossy run) |
 
 **Reading an "undefined reference" error:** the compiler only checks that
@@ -729,3 +784,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-19 | Decision (team): Pico firmware is C with the Pico SDK; a Pico 2 or Pico W does sensor and display I/O only, no TLS, no cryptography. Recorded in CONTRIBUTING, README, scope, BOM, `pico/README.md`. To confirm with the advisor (Q13 wording) |
 | 2026-10-19 | Step 16: server-side T10 cost. `tls_server --handshake-csv` (CPU over `tls_accept()`, heap held by the open connection, bytes, peak RSS), new `src/metrics/mem` module (also used by `bench_handshake`), `--server` and `--server-warmup` in `summarize_handshakes.py`, `run_handshake_bench.sh` passes the files. `e2e_bench.sh` grows to 25 checks incl. client/server byte agreement; mutation-checked. `ctest` 15/15. One 100-handshake dev-machine run: server CPU 0.36 ms (A) vs 0.50 ms (B). `e2e_loss` failed once in a full run and did not reproduce (see step 16 follow-ups). Next: full-size runs on a quiet machine, then packet captures |
 | 2026-10-19 | Step 17: shared UART frame (`src/proto/uart_frame.h/.c`, part of `pqc_proto`): CRC-16/CCITT-FALSE, sample packing, windowed parser that loses only the damaged frame; spec section 2 gained the CRC definition, the parser rules and a 21-byte example frame. `tests/test_uart_frame.c` (every bit flip, lost byte, insertion, noise, false sync, random stream), mutation-checked, ASan/UBSan clean, compiles freestanding. `ctest` 16/16. Next: Pi A's sample source |
+| 2026-10-19 | Step 18: Pi A sample source. `src/uart/uart_port` (raw 8N1 termios, poll-based read) and `src/uart/sample_source` (parser to `wire_record`, gap counting from `pico_ms`); spec section 2 gained the gap rules and the `ts_ms` meaning. Tests use a pty as the Pico; mutation-checked, ASan/UBSan clean, 40 repeats without a flake. `ctest` 18/18. Next: `tls_client --uart` and a `fake_pico` tool (step 19) |

@@ -84,6 +84,28 @@ UART is a cable between two boards we own).
 Pico A has no queue: if Pi A is down, samples are lost at the UART and counted as
 `uart_gap` from `pico_ms` gaps.
 
+**Pi A's sample source** *(proposed, `src/uart/sample_source.h`)*. Pi A opens the serial device
+(115200 8N1, raw: no echo, no newline translation), feeds the bytes to the parser above and turns each
+good frame into the start of a record: `pico_ms` and the six `imu` values from the frame, `ts_ms` from
+Pi A's wall clock when the frame is read (late by however long Pi A was busy, since the kernel buffers
+the bytes until Pi A reads them), and `node` and `seq` left for the queue to fill in.
+
+Missing samples are counted from `pico_ms` with unsigned 32-bit subtraction, so the wrap at 2^32 is not
+a gap. With `delta` = this sample's `pico_ms` minus the previous one's, and the nominal `period`
+(100 ms at 10 Hz, a config value):
+
+| `delta` | Meaning | Counted as |
+|---------|---------|------------|
+| at least `max_gap` (10 s *(proposed)*) | The Pico restarted, or stalled for longer than that | `resets`; no samples counted as lost |
+| below `period` / 2 (including 0) | Two samples closer together than they should be | `early` |
+| at least 1.5 x `period` | One or more samples never arrived | `gaps` + 1, and `samples_lost` += round(`delta` / `period`) - 1 |
+| otherwise | On time, with jitter | nothing |
+
+The first sample after Pi A starts never counts a gap (there is nothing to compare with), and the state
+is kept in memory only. A frame that arrives damaged is counted as a bad frame by the parser, not as a
+gap, but the sample it carried is missing, so the next good sample shows it as a gap: `samples_lost`
+includes samples lost to bad frames.
+
 ## 3. The record
 
 Pi A builds the record from the frame. This is what is stored, sent and deduplicated.

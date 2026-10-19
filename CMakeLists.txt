@@ -38,6 +38,19 @@ add_executable(test_uart_frame tests/test_uart_frame.c)
 target_link_libraries(test_uart_frame PRIVATE pqc_proto project_warnings)
 add_test(NAME test_uart_frame COMMAND test_uart_frame)
 
+# Pi A's sample source: a raw serial port, and frames turned into records with gap counting.
+# The tests use a pseudo-terminal as the Pico.
+add_library(pqc_uart STATIC src/uart/uart_port.c src/uart/sample_source.c)
+target_link_libraries(pqc_uart PUBLIC pqc_proto PRIVATE project_warnings)
+
+add_executable(test_uart_port tests/test_uart_port.c)
+target_link_libraries(test_uart_port PRIVATE pqc_uart project_warnings)
+add_test(NAME test_uart_port COMMAND test_uart_port)
+
+add_executable(test_sample_source tests/test_sample_source.c)
+target_link_libraries(test_sample_source PRIVATE pqc_uart project_warnings)
+add_test(NAME test_sample_source COMMAND test_sample_source)
+
 # Durable record store: append-only file, dedup by node+seq (Pi B)
 add_library(pqc_store STATIC src/store/store.c)
 target_link_libraries(pqc_store PUBLIC pqc_proto PRIVATE project_warnings)
