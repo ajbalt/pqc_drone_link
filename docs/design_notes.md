@@ -28,7 +28,8 @@ looks the way it does.
 | 10   | T10 handshake benchmark harness | `experiments/bench_handshake.c`, `scripts/run_handshake_bench.sh`, `scripts/summarize_handshakes.py` | `tests/e2e_bench.sh`, `tests/test_summarize.py` | Done (client side) |
 | 11   | Durable store: append-only file, dedup by node+seq | `src/store/store.h/.c` | `tests/test_store.c` | Done |
 | 12   | Use the store in `tls_server` (ACK after commit, count) | `pi/tls_server.c` | `tests/e2e_tls_link.sh` | Done |
-| 13   | Persistent queue on the client, window and resend | (not started) | — | Next |
+| 13   | Persistent client queue: append-only file, ACK entries, compaction, seq owner | `src/queue/queue.h/.c`, `src/common/fileio.h/.c` | `tests/test_queue.c`, `tests/test_fileio.c` | Done |
+| 14   | Client uses the queue: window of 32, resend timeout, reconnect backoff, outage tests | `pi/tls_client.c` | `tests/e2e_tls_link.sh` | Next |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Phase 1 (computers only, advisor 2026-10-16) is implemented through step 12 below on `main`.
@@ -276,6 +277,54 @@ the real store medium; the client queue (step 13) needs the same torn-tail rules
 
 ---
 
+## queue.h: the persistent client queue (Pi A)
+
+**What it is.** Pi A's half of crypto rule 15 (spec sections 1, 3 and 7). `queue_append()` gives a
+record the next `seq`, writes it and `fsync()`s it; only then may the client send it. It stays until
+`queue_ack()` for that `seq`. The queue owns the sequence numbers. Module only: the client does not
+use it yet (step 14).
+
+**File layout.** A 20-byte header (`PQCQUEU1`, a `next_seq` floor, CRC-32), then entries in the order
+they happened: a 40-byte record entry (the RECORD message plus CRC-32, same as the store) or a 16-byte
+ACK entry (the ACK message plus CRC-32). The type byte gives the length. A record is waiting if no ACK
+entry follows it. Fixed in a byte vector in `test_queue.c`.
+
+**Design choices**
+
+- **ACK entries, not an `acked_through` cursor.** A cursor cannot express out-of-order ACKs and needs an
+  in-place overwrite, which breaks the append-only rule. Cost: one more `fsync()` per ACK (about 20
+  per second at 10 Hz); measure on microSD in L7.
+- **The `next_seq` floor in the header.** Compaction drops ACKed records, so the file alone no longer
+  shows the highest `seq` ever used. Without the floor a restart could reuse an ACKed `seq` and Pi B
+  would dedup new data away. `test_no_seq_reuse` covers it.
+- **A rejected record still uses up its `seq`** (full queue gives `PQC_ERR_QUEUE_FULL`), so the loss
+  shows as a gap. The overflow count is in memory only (`queue_get_stats()`); the test harness must
+  log it. After a restart the last rejected seqs may be reused, which is safe: they were never stored.
+- **Compaction** writes `<path>.tmp`, `fsync()`s it, renames it over the queue file and syncs the
+  directory. It runs on open when ACKed records are present, and while running once as many records
+  have been ACKed as the capacity.
+- **Same torn-tail rule as the store.** Only a short or bad-CRC last entry is cut off. A good CRC with
+  a nonsense meaning (seq going backwards, another node, an ACK for a record that is not waiting) is
+  `PQC_ERR_QUEUE_CORRUPT` even as the last entry.
+- **A smaller `max_pending` than the file needs is `PQC_ERR_BAD_CONFIG`,** not silent loss.
+- **ACKs in any order are accepted;** a second ACK writes nothing; an ACK for a `seq` never issued is
+  `PQC_ERR_QUEUE_BAD_ACK`.
+- **The ring is allocated at open** (`max_pending` x 48 B), so an append never allocates after the
+  disk write. One failed write, fsync or compaction disables the queue until it is reopened.
+- **Error codes `-110..-112`** (`PQC_ERR_QUEUE_*`).
+- **`fileio` is new shared code** (read/write loops, directory sync, CRC-32, big-endian). `store.c`
+  still has its own private copies.
+
+**What to notice.** Disk first, memory second; `rename()` is the atomic step; a ring with a moving
+head makes the usual ACK O(1); the CRC check separates a crash from damage; a seeded generator makes
+the random model test reproducible. Sanitizers and three deliberate bugs (ignoring the floor,
+compaction forgetting it, not writing the ACK) were used to check the tests can fail.
+
+**Follow-ups.** Step 14 uses it from `tls_client`. Switch `store.c` to `fileio`. Measure the
+per-append and per-ACK fsync cost on the real medium.
+
+---
+
 ## Progress report (LaTeX)
 
 `docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
@@ -436,7 +485,9 @@ implement them.
       unique-record count only when `is_new` is 1 (crypto rules 15 and 16).
 - [x] After `PQC_ERR_IO` from the store, the server stops ACKing and reopens the store (or exits).
       It exits (step 12).
-- [ ] The client queue file never deletes or repairs damage before its last entry.
+- [x] The client queue file never deletes or repairs damage before its last entry (step 13).
+- [ ] `store.c` still has private copies of the helpers now in `src/common/fileio.c`; switch it over.
+- [ ] `tls_client` must call `queue_ack()` only for a verified ACK whose `seq` it sent on this connection, and must resend in `queue_get()` order after a reconnect.
 
 ## Open decisions still pending
 
@@ -467,3 +518,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-17 | T10 handshake benchmark harness typed in and tested: `bench_handshake`, `run_handshake_bench.sh`, `summarize_handshakes.py`, `tls_conn_bytes`. Fixed the CTest fixture property names (plural). First full run on this machine produced CSVs, meta and summary in `results/` (dev machine, not evidence). `ctest` 10/10 |
 | 2026-10-17 | Store decided: append-only file with fsync (not SQLite). `store` module (`src/store/`) verified, typed in and tested: dedup by node+seq, restart, capacity, torn tail, bad CRC, foreign file. New error codes -100, -101. Spec sections 6, 7 and 11 updated. `ctest` 11/11. Not yet used by `tls_server`. Next: use the store in `tls_server` |
 | 2026-10-18 | Step 12: `tls_server` commits every RECORD to the store before its ACK (`--store` required, `--store-max`), logs new and duplicate counts per connection, exits on a store failure. `e2e_tls_link.sh` adds T05 (replay counted once), restart, torn tail, foreign store file and full store, all on one machine (not gate evidence). Benchmark scripts pass a store. `ctest` 11/11, 11 e2e cases. Next: persistent queue on the client |
+| 2026-10-19 | Queue capacity and overflow proposed (10,000 un-ACKed records, reject new, still use the `seq`); spec section 7 updated. Step 13: `queue` module (`src/queue/`) and shared `fileio` (`src/common/`) verified, typed in and tested: layout, ACK entries, out-of-order ACKs, overflow, compaction, restart, torn tail, corruption, seq never reused, random model. New error codes -110 to -112. `ctest` 13/13. Next: use the queue in `tls_client` (step 14) |

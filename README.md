@@ -162,13 +162,18 @@ pqc_drone_link/
 ├── CMakeLists.txt             # Build system (C17 only)
 ├── src/                       # Code kept from the earlier work
 │   ├── common/
-│   │   └── errors.h           # Negative error codes returned by all functions
+│   │   ├── errors.h           # Negative error codes returned by all functions
+│   │   ├── fileio.h           # Shared durable-file helpers: pread/pwrite loops, dir sync, CRC-32, big-endian
+│   │   └── fileio.c
 │   ├── proto/
 │   │   ├── wire.h             # RECORD and ACK messages (encode, header check, decode)
 │   │   └── wire.c
 │   ├── net/
 │   │   ├── tcp.h              # Blocking IPv4 TCP helpers (listen, accept, connect, timeouts)
 │   │   └── tcp.c
+│   ├── queue/
+│   │   ├── queue.h            # Pi A durable queue: append-only file, ACK entries, compaction, seq owner
+│   │   └── queue.c
 │   ├── store/
 │   │   ├── store.h            # Pi B durable store: append-only file + fsync, dedup by node+seq
 │   │   └── store.c
@@ -197,6 +202,8 @@ pqc_drone_link/
 │   ├── test_metrics.c         # timer.c and logger.c
 │   ├── test_wire.c            # wire.c: byte vector, round trips, bad input
 │   ├── test_store.c           # store.c: file layout, dedup, restart, full, torn tail, corruption
+│   ├── test_fileio.c          # fileio.c: CRC-32 check value, big-endian, pread/pwrite, dir sync
+│   ├── test_queue.c           # queue.c: layout, ACKs, overflow, restart, compaction, torn tail, random model
 │   ├── test_tls_link.c        # tls_link.c: A, B, T02, T03, T04, T09 over a socketpair
 │   ├── test_tcp.c             # tcp.c on loopback
 │   ├── e2e_tls_link.sh        # tls_server + tls_client: A, B, T03, T04, T05, restart, torn/foreign/full store
@@ -286,7 +293,7 @@ Still open:
 - [ ] Loss emulation: `tc netem` on the Pis or at the access point (advisor Q10)
 - [x] Persistent store: an append-only file with `fsync`, not SQLite (team decision 2026-10-17;
       [docs/telemetry_format.md](docs/telemetry_format.md) sections 6 and 7). Pi B's store is
-      `src/store/`; the client queue will follow the same rules
+      `src/store/`; Pi A's queue is `src/queue/` (step 13, same torn-tail rules)
 - [x] Queue capacity, overflow policy and test durations: 10,000 un-ACKed records, reject new
       and count (2026-10-19; still *(proposed)* until the advisor confirms,
       [docs/telemetry_format.md](docs/telemetry_format.md) section 7)

@@ -68,8 +68,10 @@ Pi A builds the record from the frame. This is what is stored, sent and deduplic
 | 4 | `pico_ms` | From the frame |
 | 12 | `imu` | `ax ay az gx gy gz`, six signed 16-bit values |
 
-Total 33 bytes. `seq` is assigned **after** the record is durable. On restart Pi A
-continues from the highest `seq` in its store, so it never reuses a number. `ts_ms` is
+Total 33 bytes. The queue assigns `seq` when the record is appended, and it is part of the
+same `fsync`ed write. A record rejected because the queue is full still uses up its `seq`, so
+the loss shows as a gap. On restart Pi A continues from the larger of the queue header's
+`next_seq` floor and the last record in the file, so it never reuses a number that was ACKed. `ts_ms` is
 only as good as Pi A's clock; the Pis have no real-time clock, so keep them
 time-synchronized (for example with `chrony`) and say so in the evidence. Latency is
 measured with a clock reference both nodes share, or with a logic analyzer on the two UARTs.
@@ -147,11 +149,16 @@ the result is deterministic: 300 records generated, 100 queued, 200 rejected and
 the `seq` gaps reported. Run the full 10,000 capacity once as a separate check, since filling
 it takes about 17 minutes at 10 Hz.
 
-Deleting after an ACK *(proposed, to settle before the queue module is written)*: the file stays
-append-only. Pi A keeps a persisted ACK cursor (`acked_through`) and compacts by writing a new
-file, `fsync`ing it and renaming it over the old one, so a crash leaves either the old or the
-new file whole. A crash between the server's commit and the cursor write is safe: the record is
-resent and Pi B deduplicates it (section 6).
+Deleting after an ACK *(proposed, `src/queue/queue.h`)*: the file stays append-only. Each ACK is
+appended as its own 16-byte entry (the 12-byte ACK message and a CRC-32) and `fsync`ed; a record
+is waiting if no ACK entry follows it. Entries are 40 bytes (records) or 16 bytes (ACKs), told
+apart by the message type byte. The 20-byte header (`PQCQUEU1`, a `next_seq` floor, a CRC-32) is
+what keeps a `seq` from being reused after compaction. Pi A compacts by writing `<path>.tmp` with
+only the waiting records, `fsync`ing it and renaming it over the queue file, so a crash leaves
+either the old or the new file whole. It compacts at every start when the file holds ACKed
+records, and while running once as many records have been ACKed as the queue can hold. The same
+torn-tail rule as the store applies (section 6). A crash between the server's commit and the
+ACK entry is safe: the record is resent and Pi B deduplicates it.
 
 ## 8. Trust configuration
 

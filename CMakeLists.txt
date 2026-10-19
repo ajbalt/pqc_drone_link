@@ -40,6 +40,22 @@ add_executable(test_store tests/test_store.c)
 target_link_libraries(test_store PRIVATE pqc_store project_warnings)
 add_test(NAME test_store COMMAND test_store)
 
+# Shared file helpers: positioned I/O, directory sync, CRC-32, big-endian
+add_library(pqc_fileio STATIC src/common/fileio.c)
+target_link_libraries(pqc_fileio PUBLIC pqc_common PRIVATE project_warnings)
+
+add_executable(test_fileio tests/test_fileio.c)
+target_link_libraries(test_fileio PRIVATE pqc_fileio project_warnings)
+add_test(NAME test_fileio COMMAND test_fileio)
+
+# Persistent client queue: append-only file, ACK entries, compaction (Pi A)
+add_library(pqc_queue STATIC src/queue/queue.c)
+target_link_libraries(pqc_queue PUBLIC pqc_proto pqc_fileio PRIVATE project_warnings)
+
+add_executable(test_queue tests/test_queue.c)
+target_link_libraries(test_queue PRIVATE pqc_queue project_warnings)
+add_test(NAME test_queue COMMAND test_queue)
+
 enable_testing()
 
 add_executable(test_rng tests/test_rng.c)

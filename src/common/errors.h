@@ -105,6 +105,16 @@ enum pqc_err {
   PQC_ERR_STORE_FULL = -101,    /**< max_records reached; the new record is
                                    rejected and must not be ACKed */
 
+  /* Persistent client queue, queue.c (-110 .. -119). Read and write failures
+   * use PQC_ERR_IO. */
+  PQC_ERR_QUEUE_CORRUPT = -110, /**< the file is not a queue, or an entry
+                                   before the last one is damaged or makes no
+                                   sense; nothing is repaired, a person must
+                                   look */
+  PQC_ERR_QUEUE_FULL = -111,    /**< max_pending records are waiting for an
+                                   ACK; the new record is rejected (its seq
+                                   is still used up) */
+  PQC_ERR_QUEUE_BAD_ACK = -112, /**< ACK for a seq this queue never issued */
 };
 
 #endif /* PQC_ERRORS_H */
