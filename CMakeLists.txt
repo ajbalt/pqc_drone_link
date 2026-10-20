@@ -171,10 +171,26 @@ if (PQC_BUILD_TLS)
             COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e_loss.sh
             ${CMAKE_SOURCE_DIR}/scripts/run_loss_test.sh ${PQC_OPENSSL_PREFIX} ${CMAKE_BINARY_DIR})
     set_tests_properties(e2e_loss PROPERTIES SKIP_RETURN_CODE 77)
+
+    # What crosses the wire, and T09 over real TCP: a TLS-aware proxy between the real client and
+    # server records both streams and damages one record. e2e_pcap adds a real packet capture
+    # (inside a private network namespace) and is skipped, exit 77, where that is not allowed.
+    add_test(NAME e2e_wire
+            COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e_wire.sh $<TARGET_FILE:tls_server>
+            $<TARGET_FILE:tls_client> ${CMAKE_SOURCE_DIR}/scripts/tls_proxy.py
+            ${CMAKE_BINARY_DIR}/certs/main)
+    set_tests_properties(e2e_wire PROPERTIES FIXTURES_REQUIRED tls_certs)
+    add_test(NAME e2e_pcap
+            COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e_pcap.sh $<TARGET_FILE:tls_server>
+            $<TARGET_FILE:tls_client> ${CMAKE_SOURCE_DIR}/scripts/tls_proxy.py
+            ${CMAKE_SOURCE_DIR}/scripts/pcap_lo.py ${CMAKE_BINARY_DIR}/certs/main)
+    set_tests_properties(e2e_pcap PROPERTIES FIXTURES_REQUIRED tls_certs SKIP_RETURN_CODE 77)
 endif ()
 
 find_package(Python3 COMPONENTS Interpreter)
 if (Python3_FOUND)
     add_test(NAME test_summarize COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tests/test_summarize.py)
     add_test(NAME test_summarize_loss COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tests/test_summarize_loss.py)
+    add_test(NAME test_tls_proxy COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tests/test_tls_proxy.py)
+    add_test(NAME test_pcap_lo COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/tests/test_pcap_lo.py)
 endif ()

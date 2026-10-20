@@ -192,6 +192,8 @@ twice, late or truncated), not just a happy-path test.
 
 Conventions:
 
+- End-to-end scripts never wait without a limit: a process that should finish by itself is given a
+  bounded time and then stopped, so a wrong case is a failed check and not a hung build.
 - One file per module, `tests/test_<module>.c` for C code, registered in `CMakeLists.txt`
   with `add_executable` + `add_test`. Tests are plain programs with a `CHECK(cond)` macro
   that records a failure and keeps going, so one run reports every failure.

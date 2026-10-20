@@ -51,7 +51,8 @@ and every report says so. This is an educational Wi-Fi link, not flight-approved
 **Phase 1 (computers only, per the advisor on 2026-10-16) is working on `main` (merged from `pc-link`, PR #2):** a
 TLS 1.3 client and server (C17, OpenSSL 3.5.9) that run configurations A and B, the wire format,
 TCP helpers, and the T10 handshake benchmark harness. Mandatory failure cases (T03, T04, T09) are
-covered by automated tests on a development machine. This is **not** gate evidence: that needs the
+covered by automated tests on a development machine, and a proxy and a real packet capture show the
+pinned group and suite on the wire, no plaintext, and tampered records rejected over real TCP (T09). This is **not** gate evidence: that needs the
 Pis. The server commits every record to a durable, deduplicated store before ACKing it
 (`src/store/`; replay T05, restart and torn-write cases run end to end on one machine). The client
 keeps every record in a persistent queue until it is ACKed (`src/queue/`, `pi/tls_client.c`; outage T06,
@@ -243,6 +244,10 @@ pqc_drone_link/
 │   ├── test_tcp.c             # tcp.c on loopback
 │   ├── e2e_tls_link.sh        # tls_server + tls_client: A, B, T03, T04, T05, restart, torn/foreign/full store, T06, T07, L9, lost link
 │   ├── e2e_bench.sh           # bench_handshake smoke test and failure paths
+│   ├── e2e_wire.sh            # Real client and server through tls_proxy.py: group and suite on the wire, no plaintext, T09
+│   ├── e2e_pcap.sh            # Real packet capture checked against the proxy's counts (skips without a private namespace)
+│   ├── test_tls_proxy.py      # tls_proxy.py: record cutting, hello parsing, tampering, the proxy itself
+│   ├── test_pcap_lo.py        # pcap_lo.py: frame parsing, per-port counts, the pcap format
 │   ├── e2e_loss.sh            # run_loss_test.sh smoke test: A and B at 0 and 10% loss (skips without netem)
 │   ├── test_summarize.py      # summarize_handshakes.py: percentiles, warm-up exclusion
 │   ├── test_summarize_loss.py # summarize_loss.py: delivery verdicts, grouping, percentiles
@@ -260,6 +265,8 @@ pqc_drone_link/
 │   ├── tls_group_matrix.sh    # Config A/B, T03 and T04 cases on loopback (bring-up check)
 │   ├── tls_handshake_bytes.sh # Handshake bytes for A and B through a counting proxy
 │   ├── proxy_count.py         # Helper: counts TCP payload bytes per direction
+│   ├── tls_proxy.py           # TLS-aware proxy: records both streams, reads the hellos, damages one record (T09)
+│   ├── pcap_lo.py             # Loopback .pcap recorder (no root, in a private namespace) and per-port byte counts
 │   ├── run_handshake_bench.sh # Runs the T10 benchmark from a config file; writes CSVs, meta, summary
 │   ├── clean_results.sh       # Deletes old runs from results/ (dry run unless --apply)
 │   ├── summarize_handshakes.py # Median, p95, spread per configuration from the raw CSV

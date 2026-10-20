@@ -34,8 +34,9 @@ looks the way it does.
 | 16   | Server-side CPU and memory in the T10 benchmark: `tls_server --handshake-csv`, `mem` module, `--server` in the summary | `src/metrics/mem.h/.c`, `pi/tls_server.c`, `scripts/summarize_handshakes.py`, `scripts/run_handshake_bench.sh` | `tests/test_metrics.c`, `tests/test_summarize.py`, `tests/e2e_bench.sh` (25 checks) | Done |
 | 17   | Shared UART frame: encoder, sample packing, resynchronising parser (Pico A and Pi A compile the same file) | `src/proto/uart_frame.h/.c` | `tests/test_uart_frame.c` | Done |
 | 18   | Pi A sample source: raw serial port, frames to records, counts of bad frames and lost samples (`uart_gap`) | `src/uart/uart_port.h/.c`, `src/uart/sample_source.h/.c` | `tests/test_uart_port.c`, `tests/test_sample_source.c` (pseudo-terminal as the Pico) | Done |
-| 19   | `tls_client --uart PATH`: records come from the sample source (poll the serial fd while waiting); a `fake_pico` tool that feeds a pty at 10 Hz with optional faults; end-to-end test through TLS | (not started) | — | Next |
-| 20   | Full-size runs on a quiet machine (T10 100+ handshakes, T08 10 x 10 min); then packet captures for byte totals with headers | (not started) | — | Next |
+| 19   | What crosses the wire, and T09 over real TCP: TLS-aware proxy, loopback `.pcap` recorder, Phase 1 "verified encryption" evidence | `scripts/tls_proxy.py`, `scripts/pcap_lo.py` | `tests/e2e_wire.sh` (43 checks), `tests/e2e_pcap.sh` (20), `tests/test_tls_proxy.py`, `tests/test_pcap_lo.py` | Done |
+| 20   | Close Phase 1: full-size T10 and T08 runs on a quiet machine and two real computers; results in `docs/results.md`; summary and open questions for the advisor | (not started) | — | Next |
+| 21   | Phase 2 preparation: `tls_client --uart PATH` (poll the serial fd while waiting) and a `fake_pico` tool that feeds a pty at 10 Hz with optional faults | (not started) | — | Later |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
 Phase 1 (computers only, advisor 2026-10-16) is implemented through step 12 below on `main`.
@@ -160,7 +161,7 @@ because TLS returns whatever has arrived; every call clears OpenSSL's error queu
 `X25519MLKEM768`).
 
 **Follow-ups.** T09 is
-covered here by raw bytes on a socketpair; repeat it through a proxy on the real link.
+covered here by raw bytes on a socketpair; it is repeated through a proxy over real TCP in step 19.
 
 ---
 
@@ -577,6 +578,50 @@ counters with the Pico's own sample count on the real hardware (L3).
 
 ---
 
+## Wire capture and T09 over real TCP (step 19)
+
+**What it is.** Phase 1 has to show "verified encryption, decryption, communication". Until now that was
+shown by tests on a socketpair. This step puts a TLS-aware proxy (`scripts/tls_proxy.py`) between the real
+`tls_client` and `tls_server`, and records the loopback interface to a real `.pcap` (`scripts/pcap_lo.py`).
+
+**What the tests show (dev machine, not gate evidence).** In `e2e_wire.sh`, for A and B: the ClientHello
+offers only the pinned group (`001d` or `11ec`) with a key share for it, TLS 1.3 only and the one cipher
+suite `1301`; the ServerHello chooses the same, no retry; there is one clear handshake record each way and
+everything after it is encrypted (the server certificate is unreadable); none of five queued records, their
+`(seq, ts_ms)` fields or the server's ACKs appear in the captured bytes, while the records are in the server's
+store (so the search can find them). For tampering, a bit flipped in the client's RECORD, in the server's ACK,
+in the server's first encrypted handshake record and in the client's Finished is always rejected by TLS;
+nothing damaged is stored; the client reconnects and delivers every record once, except when the client's own
+handshake is damaged, where it stops (fail closed). A damaged ACK followed by the resend is the T05 and T09
+cases together: the server stores once and recognises the duplicate. In `e2e_pcap.sh` the capture's TCP
+payload equals the proxy's own stream count exactly in both directions and on both legs, headers cost at
+least 54 bytes a packet, nothing is retransmitted on a clean loopback, and no plaintext record is in the raw
+file. One 5-record dev run: A 587 payload / 1573 on the wire client to server in 15 packets, B 1763 / 2749.
+
+**Design choices**
+
+- **A proxy, not only a packet capture,** because the proxy can read the unencrypted hellos and damage one
+  record, and gets a TLS-record view with no TCP reassembly; the pcap supplies headers and the independent check.
+- **No root:** `AF_PACKET` works inside `unshare -Urn` (the same private namespace the loss runner uses).
+  On loopback every packet is seen twice (outgoing and received); only the received copy is kept.
+- **The record to damage is found by counting** the encrypted records of a clean one-record run (the RECORD
+  and the ACK are the second to last from each side, `close_notify` last), not by fixed numbers.
+- **Two independent counts must agree:** a mutation that kept both copies of each packet doubled the payload
+  and failed the test.
+- **Bounded waits.** `settle` gives each process 10 s and then stops it, so a case that goes wrong is a failed
+  check, not a stuck build (the first no-tamper mutation run hung until the 10 minute limit).
+
+**What to notice.** After a damaged ACK the server counts a protocol error rather than a clean close: the
+client's TLS object is in an error state and sends no `close_notify`. In TLS 1.3 every encrypted record, even
+the encrypted handshake and `close_notify`, has outer type 23, so "application data" must be told from
+handshake by position, not by type. The client Finished and a 36-byte RECORD both encrypt to 53 bytes, so
+matching by length would have hit the wrong record.
+
+**Follow-ups.** A small script that keeps a `.pcap` plus the tamper demo for the advisor package and the
+slides (the tests delete their files). Repeat the capture on the real network once two machines are used.
+
+---
+
 ## Progress report (LaTeX)
 
 `docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
@@ -716,6 +761,8 @@ Mistakes we've hit so far, and how to recognise them next time.
 | Last end-to-end case fails and a server log shows `kill: No such process` | A block of the script was pasted twice, so two `start_server` calls ran; the first server kept the port, `SPID` pointed at the second (which could not bind), and `kill`/`wait` hit the wrong process | `diff -w` the typed script against the draft; a second `start_server` in one case is the sign; count the PASS lines (17) |
 | `kill -9` in a test leaves the program running | `timeout` is its own process; the signal reached `timeout`, not the client | `pkill -9 -P <timeout pid>` first, then `kill -9` the timeout |
 | `precommit` fails with "missing final newline" on a file that `diff -w` calls identical | `diff -w` ignores a missing last newline | Editor setting; `precommit` catches it |
+| A test run hangs for ten minutes after a deliberate break (a mutation) | The script waited for a server that expected a second connection which never came; a plain `wait` has no limit | Wait with a bound (`settle`: 10 s, then stop the process) in every end-to-end script, so a wrong case is a failed check |
+| `pkill -f e2e_wire.sh` ends the tool call with exit 144 | The pattern also matches the command line of the shell that is running `pkill` | Kill by process id, or use a pattern that does not appear in your own command line |
 | A test using a pseudo-terminal fails about once in a few runs: the second frame never arrives | Linux drops bytes still queued when the pty master closes; the test closed it straight after writing | Wait for the bytes to cross (a short sleep or a read) before closing; repeat the test 40 times before trusting it |
 | `precommit` fails on Doxygen ("parameters of take_frame are not documented") while the build and tests pass | A static helper's comment documented one parameter of three; `-Wall -Wextra` does not check comments | Run `cmake --build build --target docs` (or `/precommit`) on every new file, not only the compiler and tests |
 | A smoke test passes with the thing it tests switched off | The check matched a line that a different part of the output also produces (the netem probe line in the meta file), so it never looked at the per-run lines | Break the code on purpose and see the test fail (mutation check); assert on something only the real effect produces (TCP retransmissions, exactly one qdisc line per lossy run) |
@@ -785,3 +832,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-19 | Step 16: server-side T10 cost. `tls_server --handshake-csv` (CPU over `tls_accept()`, heap held by the open connection, bytes, peak RSS), new `src/metrics/mem` module (also used by `bench_handshake`), `--server` and `--server-warmup` in `summarize_handshakes.py`, `run_handshake_bench.sh` passes the files. `e2e_bench.sh` grows to 25 checks incl. client/server byte agreement; mutation-checked. `ctest` 15/15. One 100-handshake dev-machine run: server CPU 0.36 ms (A) vs 0.50 ms (B). `e2e_loss` failed once in a full run and did not reproduce (see step 16 follow-ups). Next: full-size runs on a quiet machine, then packet captures |
 | 2026-10-19 | Step 17: shared UART frame (`src/proto/uart_frame.h/.c`, part of `pqc_proto`): CRC-16/CCITT-FALSE, sample packing, windowed parser that loses only the damaged frame; spec section 2 gained the CRC definition, the parser rules and a 21-byte example frame. `tests/test_uart_frame.c` (every bit flip, lost byte, insertion, noise, false sync, random stream), mutation-checked, ASan/UBSan clean, compiles freestanding. `ctest` 16/16. Next: Pi A's sample source |
 | 2026-10-19 | Step 18: Pi A sample source. `src/uart/uart_port` (raw 8N1 termios, poll-based read) and `src/uart/sample_source` (parser to `wire_record`, gap counting from `pico_ms`); spec section 2 gained the gap rules and the `ts_ms` meaning. Tests use a pty as the Pico; mutation-checked, ASan/UBSan clean, 40 repeats without a flake. `ctest` 18/18. Next: `tls_client --uart` and a `fake_pico` tool (step 19) |
+| 2026-10-19 | Step 19: Phase 1 "verified encryption" evidence. `tls_proxy.py` (TLS-aware proxy: records both streams, reads the hellos, damages one record) and `pcap_lo.py` (loopback `.pcap` recorder and per-port counts, no root). `e2e_wire.sh` (43 checks: pinned group and suite on the wire, no plaintext, T09 on a RECORD, an ACK and two handshake records over real TCP) and `e2e_pcap.sh` (20 checks: capture equals the proxy's count, headers, no retransmissions). Mutation-checked, repeated 5 to 6 times. `ctest` 22/22. Next: close Phase 1 (full-size runs, results, advisor summary) |

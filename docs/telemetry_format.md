@@ -310,6 +310,17 @@ is not captured per attempt; the process peak RSS is printed once per run. Perce
 nearest-rank. Successes go to `*.ok.csv`, failures to
 `*.fail.csv`, and a run with fewer than 100 measured successes is marked INSUFFICIENT.
 
+**Bytes on the wire and T09 over real TCP** *(proposed, `scripts/tls_proxy.py`, `scripts/pcap_lo.py`)*.
+`tls_proxy.py` sits between the real client and server, forwards one TLS record at a time, records both
+byte streams, and reads the unencrypted ClientHello and ServerHello: the groups offered and chosen, the
+TLS versions, the cipher suite (so the pinned configuration is visible on the wire, T02), and whether a
+HelloRetryRequest happened. With `--tamper c2s:N` or `s2c:N` it flips one bit in the Nth type-23 record of
+that direction on the first connection (T09). `pcap_lo.py` records the loopback interface to a `.pcap`
+that Wireshark opens, inside a private network namespace (no root), and counts per direction the packets,
+the bytes with Ethernet, IP and TCP headers, the TCP payload bytes and retransmissions. The TCP payload
+equals the TLS byte stream the proxy counts, which the end-to-end test checks. These are the T10 "bytes on
+the wire" with headers; the handshake benchmark itself still counts the TLS stream only.
+
 **Server side** *(proposed, `tls_server --handshake-csv`)*. The server writes one row per accepted
 connection to its own file (`*.server_A.csv`, `*.server_B.csv`): CPU time of the server process over
 `tls_accept()` (work, not waiting for the client), the live heap the open connection holds
