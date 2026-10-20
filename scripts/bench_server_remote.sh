@@ -24,6 +24,12 @@ for f in srv.crt srv.key; do [ -r "$CERTS/$f" ] || { echo "missing $CERTS/$f" >&
 for c in A B; do
   [ ! -e "$OUT/$RUN.server_$c.csv" ] || { echo "$OUT/$RUN.server_$c.csv exists; use a new run id" >&2; exit 2; }
 done
+for port in "$PORT_A" "$PORT_B"; do
+  if ss -ltn 2>/dev/null | grep -q ":$port "; then
+    echo "port $port is already in use (an old server still running?): stop it first" >&2
+    exit 2
+  fi
+done
 mkdir -p "$OUT"
 STORES=$(mktemp -d)
 cleanup() { kill $(jobs -p) 2>/dev/null || true; rm -rf "$STORES"; }
