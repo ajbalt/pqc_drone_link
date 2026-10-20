@@ -20,7 +20,7 @@ WIN_DIR="$WIN_ROOT\\Temp\\pqc_report_build"
 W=$(wslpath -u "$WIN_DIR")
 rm -rf "$W" && mkdir -p "$W"
 cp "$SRC/$NAME.tex" "$W/"
-for d in data data2; do [ -d "$SRC/$d" ] && cp -r "$SRC/$d" "$W/"; done
+for d in data data2 data3; do [ -d "$SRC/$d" ] && cp -r "$SRC/$d" "$W/"; done
 printf '@echo off\r\ncd /d %s\r\nlatexmk -pdf -interaction=nonstopmode -file-line-error -pdflatex="pdflatex -interaction=nonstopmode -file-line-error --enable-installer %%%%O %%%%S" %s.tex > build.log 2>&1\r\n' \
        "$WIN_DIR" "$NAME" > "$W/build.bat"
 cmd.exe /c "$WIN_DIR\\build.bat" > /dev/null 2>&1 || true

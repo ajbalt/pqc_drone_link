@@ -35,7 +35,7 @@ looks the way it does.
 | 17   | Shared UART frame: encoder, sample packing, resynchronising parser (Pico A and Pi A compile the same file) | `src/proto/uart_frame.h/.c` | `tests/test_uart_frame.c` | Done |
 | 18   | Pi A sample source: raw serial port, frames to records, counts of bad frames and lost samples (`uart_gap`) | `src/uart/uart_port.h/.c`, `src/uart/sample_source.h/.c` | `tests/test_uart_port.c`, `tests/test_sample_source.c` (pseudo-terminal as the Pico) | Done |
 | 19   | What crosses the wire, and T09 over real TCP: TLS-aware proxy, loopback `.pcap` recorder, Phase 1 "verified encryption" evidence | `scripts/tls_proxy.py`, `scripts/pcap_lo.py` | `tests/e2e_wire.sh` (43 checks), `tests/e2e_pcap.sh` (20), `tests/test_tls_proxy.py`, `tests/test_pcap_lo.py` | Done |
-| 20   | Close Phase 1: full-size T10 and T08 runs on a quiet machine and two real computers; results in `docs/results.md`; summary and open questions for the advisor | (not started) | — | Next |
+| 20   | Close Phase 1: full-size T10 and T08 runs on a quiet machine and two real computers; results in `docs/results.md`; summary and open questions for the advisor | `scripts/bench_server_remote.sh`, `scripts/bench_client_remote.sh`, `experiments/configs/t10_handshake_lan.conf`, `docs/two_machine_setup.md` | T10 across two machines done (3 sessions, dev machines); T08 full run, `results.md` finish and advisor summary still open | In progress |
 | 21   | Phase 2 preparation: `tls_client --uart PATH` (poll the serial fd while waiting) and a `fake_pico` tool that feeds a pty at 10 Hz with optional faults | (not started) | — | Later |
 | 3-6  | Key exchange interface, packet formats, UDP transport, baseline apps | (removed from `main`) | — | Archived at tag `custom-stack-v1` |
 
@@ -642,6 +642,16 @@ the T10 sessions that have server files, the newest `t08_loss_loopback_*.runs.cs
 Debug build. Every result in it is labelled preliminary (development computer, loopback, 3 repetitions
 per T08 cell instead of 10, not gate evidence).
 
+**Report 3,** `docs/report/progress_report_3.tex` (7 pages, 7 TikZ diagrams, 6 pgfplots figures), covers the
+T10 benchmark between two computers: the setup, how a session runs and when it counts, handshake time and
+CPU on both ends, why ratios are quoted, bytes and memory, the slow connects in configuration B, the two
+invalid sessions, claims and limits. `prepare_data3.py RESULTS_DIR OUT_DIR [IDS]` (standard library only)
+reads the three valid sessions in `~/t10_results` (default ids `t10_lan_s1 t10_lan_s2b t10_lan_s3b`),
+checks Release build, no failures, equal client and server counts and agreeing byte counts, and writes
+`data3/`. matplotlib was not available (PEP 668 on the system Python, no `python3-venv`), so the plots are
+pgfplots from the generated data, as in Report 2. The report states that the slow connects are not
+explained and the invalid-session timeline shows only what the file time stamps say.
+
 **Building** (Linux has no LaTeX; the Windows MiKTeX is used from WSL2): `scripts/build_report.sh
 progress_report_2` copies the sources to a Windows temp folder, runs `latexmk` there, and copies the PDF
 back; `--png` also renders every page to PNG (`scripts/render_pdf.ps1`, using the PDF renderer that ships
@@ -762,6 +772,8 @@ Mistakes we've hit so far, and how to recognise them next time.
 
 | Symptom | Cause | How it's caught now |
 |---------|-------|---------------------|
+| Two-machine run: server CSV of one session has dozens of extra rows, the next session's server CSV is empty | A server from the previous session was still running and other client runs reached it (the files do not say which) | `pgrep -a tls_server` before every session; `bench_server_remote.sh` refuses to start if its ports are in use; the summarizer warns when client and server counts differ |
+| Client `connect_failed rc=-71` (`PQC_ERR_TIMEOUT`) to another machine | Server firewall silently dropped the port (a refusal would be `PQC_ERR_IO`) | `nc -zv` before running; open the port in `ufw` |
 | Build passes, but an error code "doesn't exist" when first used | An unterminated `/*` comment in `errors.h` swallowed the next enum line | Tests that use every value; read compiler output for "undeclared" |
 | Linker: `undefined reference to 'timer_cpu_ns'` | Typo between header and `.c` file (`timer_cput_ns`); each file compiled fine on its own | `-Wmissing-prototypes` now fails the build on the exact line |
 | Doxygen describes a struct with the enum's text | Comment block copied and not edited | Read the generated docs (`cmake --build build --target docs`) |
@@ -851,3 +863,4 @@ See "Open decisions" in README.md and [advisor_questions.md](advisor_questions.m
 | 2026-10-19 | Step 17: shared UART frame (`src/proto/uart_frame.h/.c`, part of `pqc_proto`): CRC-16/CCITT-FALSE, sample packing, windowed parser that loses only the damaged frame; spec section 2 gained the CRC definition, the parser rules and a 21-byte example frame. `tests/test_uart_frame.c` (every bit flip, lost byte, insertion, noise, false sync, random stream), mutation-checked, ASan/UBSan clean, compiles freestanding. `ctest` 16/16. Next: Pi A's sample source |
 | 2026-10-19 | Step 18: Pi A sample source. `src/uart/uart_port` (raw 8N1 termios, poll-based read) and `src/uart/sample_source` (parser to `wire_record`, gap counting from `pico_ms`); spec section 2 gained the gap rules and the `ts_ms` meaning. Tests use a pty as the Pico; mutation-checked, ASan/UBSan clean, 40 repeats without a flake. `ctest` 18/18. Next: `tls_client --uart` and a `fake_pico` tool (step 19) |
 | 2026-10-19 | Step 19: Phase 1 "verified encryption" evidence. `tls_proxy.py` (TLS-aware proxy: records both streams, reads the hellos, damages one record) and `pcap_lo.py` (loopback `.pcap` recorder and per-port counts, no root). `e2e_wire.sh` (43 checks: pinned group and suite on the wire, no plaintext, T09 on a RECORD, an ACK and two handshake records over real TCP) and `e2e_pcap.sh` (20 checks: capture equals the proxy's count, headers, no retransmissions). Mutation-checked, repeated 5 to 6 times. `ctest` 22/22. Next: close Phase 1 (full-size runs, results, advisor summary) |
+| 2026-10-20 | Step 20 (part): T10 across two machines. `bench_server_remote.sh` and `bench_client_remote.sh` (ports 4433/4434, same run id on both, port check), `t10_handshake_lan.conf`, runbook `docs/two_machine_setup.md`. Native Linux server, WSL2 client, 3 valid sessions of 100 handshakes per configuration, counts match on both sides. B costs 0.14 to 0.23 ms and about 1.2 times the CPU of A; B showed 2 slow (about 1 s) connects per session, cause not investigated (proof of concept; the Pis are the real test). Two invalid sessions kept under `invalid/` (cause of the extra rows not fully established). Results in `docs/results.md` (dev machines, not evidence) |

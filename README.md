@@ -139,6 +139,12 @@ Results from a development machine are not gate evidence; record them in
 [docs/results.md](docs/results.md) with the platform. Do not commit raw logs from `results/`. To tidy it, run `scripts/clean_results.sh --keep 3`
 (a dry run; add `--apply` to delete old runs).
 
+### Running the link and the T10 benchmark on two computers
+
+Server, client, certificates, firewall, smoke test and the benchmark commands, with the mistakes we
+already made, are in [docs/two_machine_setup.md](docs/two_machine_setup.md). It uses
+`scripts/bench_server_remote.sh` and `scripts/bench_client_remote.sh`.
+
 ### Running the packet-loss test (T08)
 
 Needs a **Release** build and a kernel that allows unprivileged user and network namespaces (no `sudo`).
@@ -268,6 +274,8 @@ pqc_drone_link/
 │   ├── tls_proxy.py           # TLS-aware proxy: records both streams, reads the hellos, damages one record (T09)
 │   ├── pcap_lo.py             # Loopback .pcap recorder (no root, in a private namespace) and per-port byte counts
 │   ├── run_handshake_bench.sh # Runs the T10 benchmark from a config file; writes CSVs, meta, summary
+│   ├── bench_server_remote.sh # T10 across two machines, server side: A (4433) and B (4434) servers, server CSVs, meta
+│   ├── bench_client_remote.sh # T10 across two machines, client side: bench_handshake against them, CSVs, meta
 │   ├── clean_results.sh       # Deletes old runs from results/ (dry run unless --apply)
 │   ├── summarize_handshakes.py # Median, p95, spread per configuration from the raw CSV
 │   ├── capture_demo.sh        # Keeps a real .pcap and the proxy's summary for A, B and one tampered run (advisor package)
@@ -300,7 +308,11 @@ pqc_drone_link/
     │   ├── data/                # Generated plot data; rerun prepare_data.py to refresh
     │   ├── progress_report_2.tex # Report 2 (and its .pdf) (reliability, loss, both-sided cost, wire capture, Phase 2 prep)
     │   ├── prepare_data2.py     # Turns the T10 server files, T08 runs and capture files into data2/
-    │   └── data2/               # Generated tables, macros and plot data for Report 2
+    │   ├── data2/               # Generated tables, macros and plot data for Report 2
+    │   ├── progress_report_3.tex # Report 3 (and its .pdf): the T10 benchmark between two computers
+    │   ├── prepare_data3.py     # Turns the two-machine T10 files in ~/t10_results into data3/
+    │   └── data3/               # Generated tables, macros and plot data for Report 3
+    ├── two_machine_setup.md   # Runbook: link and T10 benchmark between two computers (commands, pitfalls)
     └── results.md             # Our own measurements (preliminary dev-machine results so far)
 ```
 
