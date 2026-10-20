@@ -622,15 +622,33 @@ slides (the tests delete their files). Repeat the capture on the real network on
 
 ---
 
-## Progress report (LaTeX)
+## Progress reports (LaTeX)
 
-`docs/report/progress_report.tex` is a short advisor-facing report with the architecture, security
-design, wire format, verification table and benchmark plots. Plot data comes from
-`prepare_data.py`, which reads the raw `results/*.ok.csv` files and writes `docs/report/data/`,
-including `numbers.tex`, the macros the text uses, so no measurement is typed by hand. It refuses
-to run on non-Release rows. All results in it are labelled preliminary (development computer,
-loopback, not gate evidence). Rebuild after new benchmark runs: run `prepare_data.py`, then
-`latexmk -pdf progress_report.tex` (MiKTeX on Windows works; add `--enable-installer` for packages).
+**Report 1,** `docs/report/progress_report.tex`, is a short advisor-facing report with the architecture,
+security design, wire format, verification table and benchmark plots. Plot data comes from
+`prepare_data.py`, which reads the raw `results/*.ok.csv` files and writes `docs/report/data/`, including
+`numbers.tex`, the macros the text uses, so no measurement is typed by hand. It refuses to run on
+non-Release rows. Do not rerun it without care: it reads every `*.ok.csv` in `results/`, so newer runs
+change Report 1's pooled numbers.
+
+**Report 2,** `docs/report/progress_report_2.tex`, continues from Report 1: the durable store and queue
+(record path, file layouts, crash cases), the T08 loss runner and a first look, the handshake cost on both
+ends, what crosses the wire (proxy, `.pcap`, tampered records), the UART frame and sample source (frame
+layout, parser window, gap rules, shared code), the test approach, the way to close Phase 1 and the
+questions for the advisor. 14 diagrams (TikZ) and 3 plots. `prepare_data2.py RESULTS CAPTURE OUT BUILD`
+writes `data2/` (the macros in `numbers2.tex`, the T08 table, the on-the-wire table, box-plot data) from:
+the T10 sessions that have server files, the newest `t08_loss_loopback_*.runs.csv`, and a folder written by
+`scripts/capture_demo.sh`. It checks that client and server counted the same handshakes and refuses a
+Debug build. Every result in it is labelled preliminary (development computer, loopback, 3 repetitions
+per T08 cell instead of 10, not gate evidence).
+
+**Building** (Linux has no LaTeX; the Windows MiKTeX is used from WSL2): `scripts/build_report.sh
+progress_report_2` copies the sources to a Windows temp folder, runs `latexmk` there, and copies the PDF
+back; `--png` also renders every page to PNG (`scripts/render_pdf.ps1`, using the PDF renderer that ships
+with Windows) so the diagrams can be looked at. Lessons: a row file read with `\input` must not end with
+`\\` (LaTeX reports "Misplaced \noalign"), so generated tables separate rows with `\\` and the report
+adds the last one; a dimension like `20*0.075cm` in a TikZ key is not evaluated, so write it out; look at the
+rendered pages, because a diagram can compile cleanly and still overlap or run off the page.
 
 ---
 

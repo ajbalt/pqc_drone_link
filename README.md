@@ -270,6 +270,9 @@ pqc_drone_link/
 │   ├── run_handshake_bench.sh # Runs the T10 benchmark from a config file; writes CSVs, meta, summary
 │   ├── clean_results.sh       # Deletes old runs from results/ (dry run unless --apply)
 │   ├── summarize_handshakes.py # Median, p95, spread per configuration from the raw CSV
+│   ├── capture_demo.sh        # Keeps a real .pcap and the proxy's summary for A, B and one tampered run (advisor package)
+│   ├── build_report.sh        # Builds a LaTeX report with the Windows MiKTeX from WSL2; --png renders the pages
+│   ├── render_pdf.ps1         # Windows-side helper for build_report.sh --png (PDF pages to PNG)
 │   ├── run_loss_test.sh       # Runs the T08 loss test from a config file in private namespaces; writes CSV, meta, summary
 │   ├── summarize_loss.py      # Delivery, median, p95 per configuration and loss level from the per-run CSV
 │   ├── netem_setup.sh         # (planned) netem on the Pis or the access point
@@ -292,9 +295,12 @@ pqc_drone_link/
     ├── design_notes.md        # Why the code looks the way it does; status and progress log
     ├── threat_model.md        # (planned) What attacks we defend against, and which we don't
     ├── report/                # LaTeX progress report: diagrams and plots from the raw benchmark CSVs
-    │   ├── progress_report.tex  # Build with latexmk -pdf; every number comes from data/numbers.tex
+    │   ├── progress_report.tex  # Report 1 (core link, first benchmark); numbers from data/numbers.tex
     │   ├── prepare_data.py      # Turns results/*.ok.csv into the plot data (standard library only)
-    │   └── data/                # Generated plot data; rerun prepare_data.py to refresh
+    │   ├── data/                # Generated plot data; rerun prepare_data.py to refresh
+    │   ├── progress_report_2.tex # Report 2 (and its .pdf) (reliability, loss, both-sided cost, wire capture, Phase 2 prep)
+    │   ├── prepare_data2.py     # Turns the T10 server files, T08 runs and capture files into data2/
+    │   └── data2/               # Generated tables, macros and plot data for Report 2
     └── results.md             # Our own measurements (preliminary dev-machine results so far)
 ```
 
