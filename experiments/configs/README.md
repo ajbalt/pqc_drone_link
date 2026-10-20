@@ -3,6 +3,8 @@
 One file per experiment. **Never change an experiment by editing code**; change or add a config.
 The handshake benchmark runner (`scripts/run_handshake_bench.sh`) reads this format, plain `key=value` lines, from
 `t10_handshake_loopback.conf`, and the packet-loss runner (`scripts/run_loss_test.sh`) from `t08_loss_loopback.conf`.
+`t10_handshake_lan.conf` is the same experiment across two machines
+(`scripts/bench_server_remote.sh` on the server, `scripts/bench_client_remote.sh` on the client).
 The other experiment runners (`scripts/run_demo.sh`, outage runs) are still planned, so fields they need are *(proposed)*.
 
 ## Fields
